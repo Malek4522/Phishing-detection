@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- Magnifying glass -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,28h-1.6l-0.5,-0.5c1.9,-2.3 3.1,-5.2 3.1,-8.5 0,-7.2 -5.8,-13 -13,-13s-13,5.8 -13,13 5.8,13 13,13c3.3,0 6.2,-1.2 8.5,-3.1l0.5,0.5v1.6l10,9.9 3,-3 -9.9,-10zM19,28c-5,0 -9,-4 -9,-9s4,-9 9,-9 9,4 9,9 -4,9 -9,9z"/>
+    
+    <!-- URL text with checkmark -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,18h10v2h-10z"/>
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,18l2,2 4,-4 1.4,1.4 -5.4,5.6 -3.4,-3.4z"/>
+</vector> 

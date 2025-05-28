@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GuardianAI</string>
+    
+    <!-- Onboarding Screen 1 -->
+    <string name="onboarding_title_1">GuardianAI Protection from Phishing Attacks</string>
+    <string name="onboarding_desc_1">Protect your data &amp; finances with AI-driven real-time phishing protection.</string>
+    
+    <!-- Onboarding Screen 2 -->
+    <string name="onboarding_title_2">Real-Time URL Scanning</string>
+    <string name="onboarding_desc_2">Our advanced AI analyzes URLs in real-time to detect and block phishing attempts before you click.</string>
+    
+    <!-- Onboarding Screen 3 -->
+    <string name="onboarding_title_3">Secure Financial Transactions</string>
+    <string name="onboarding_desc_3">Shop and bank online with confidence knowing GuardianAI is protecting your sensitive information.</string>
+    
+    <string name="get_started">Get Started</string>
+    <string name="next">Next</string>
+    <string name="skip">Skip</string>
+</resources>
