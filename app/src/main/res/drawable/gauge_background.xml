@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer arc background -->
+    <item>
+        <shape
+            android:shape="ring"
+            android:useLevel="false"
+            android:thicknessRatio="13"
+            android:innerRadiusRatio="3">
+            <gradient
+                android:type="sweep"
+                android:useLevel="false"
+                android:startColor="@color/gauge_red"
+                android:centerColor="@color/gauge_yellow"
+                android:endColor="@color/gauge_green"
+                android:centerY="0.5"
+                android:centerX="0.5" />
+        </shape>
+    </item>
+</layer-list> 

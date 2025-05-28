@@ -9,4 +9,25 @@
     <color name="purple_gradient_end">#5E35B1</color>
     <color name="background_dark">#121212</color>
     <color name="button_pink">#D81B60</color>
+    
+    <!-- Dashboard colors -->
+    <color name="card_background">#2A2A2A</color>
+    <color name="card_purple">#8E24AA</color>
+    <color name="text_secondary">#B3FFFFFF</color>
+    <color name="status_green">#00C853</color>
+    
+    <!-- Gauge colors updated to match the image -->
+    <color name="gauge_green">#4CAF50</color>
+    <color name="gauge_yellow">#FFC107</color>
+    <color name="gauge_orange">#FF9800</color>
+    <color name="gauge_red">#F44336</color>
+    
+    <!-- Risk level colors updated -->
+    <color name="critical_red">#F44336</color>
+    <color name="high_orange">#FF9800</color>
+    <color name="medium_yellow">#FFC107</color>
+    <color name="positive_green">#4CAF50</color>
+    
+    <color name="dark_surface">#1E1E1E</color>
+    <color name="tab_unselected">#757575</color>
 </resources>

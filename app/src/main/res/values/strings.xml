@@ -17,4 +17,29 @@
     <string name="get_started">Get Started</string>
     <string name="next">Next</string>
     <string name="skip">Skip</string>
+    
+    <!-- Dashboard Strings -->
+    <string name="welcome_back">Welcome Back</string>
+    <string name="protection_active">Protection GuardianAI is Active</string>
+    <string name="statistical_results">Statistical Results</string>
+    <string name="total_links_scanned">Total Link Scanned</string>
+    <string name="links_per_day">%d/day</string>
+    <string name="solved">Solved</string>
+    <string name="percent_increase">+%d%%</string>
+    <string name="critical">Critical</string>
+    <string name="high">High</string>
+    <string name="medium">Medium</string>
+    <string name="links">%d Link</string>
+    <string name="statistical_summary">Statistical Summary</string>
+    <string name="see_all">See All</string>
+    <string name="daily_scanned">Daily Scanned</string>
+    <string name="today">Today, %s</string>
+    <string name="weekly_scanned">Weekly Scanned</string>
+    <string name="links_count">%d Links</string>
+    
+    <!-- Bottom Navigation -->
+    <string name="home">Home</string>
+    <string name="scan">Scan</string>
+    <string name="history">History</string>
+    <string name="settings">Settings</string>
 </resources>
