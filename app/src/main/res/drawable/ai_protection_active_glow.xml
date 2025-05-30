@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" 
+    android:shape="oval">
+    
+    <!-- Single radial gradient for a true circular glow -->
+    <gradient
+        android:type="radial"
+        android:gradientRadius="60dp"
+        android:startColor="#E0E91E63"
+        android:centerColor="#809C27B0"
+        android:endColor="#00000000"
+        android:centerX="0.5"
+        android:centerY="0.5" />
+    
+    <!-- No size restriction to allow it to fill its container -->
+    
+</shape>

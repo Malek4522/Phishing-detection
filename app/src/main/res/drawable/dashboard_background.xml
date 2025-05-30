@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Base dark background -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/background_dark" />
+        </shape>
+    </item>
+    
+    <!-- Subtle grid pattern using shapes -->
+    <item>
+        <shape android:shape="rectangle">
+            <stroke android:width="0.5dp" android:color="#08FFFFFF" android:dashWidth="1dp" android:dashGap="40dp" />
+        </shape>
+    </item>
+    
+    <item>
+        <shape android:shape="rectangle">
+            <stroke android:width="0.5dp" android:color="#08FFFFFF" android:dashWidth="40dp" android:dashGap="1dp" />
+        </shape>
+    </item>
+    
+    <!-- Gradient overlay with purple tones -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:startColor="#00000000"
+                android:centerColor="#109C27B0"
+                android:endColor="#00000000"
+                android:type="linear" />
+        </shape>
+    </item>
+    
+    <!-- Top radial gradient for a glowing effect -->
+    <item android:top="-300dp" android:left="0dp" android:right="0dp">
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="400dp"
+                android:startColor="#209C27B0"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+    
+    <!-- Bottom vignette -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#40000000"
+                android:centerColor="#00000000"
+                android:endColor="#00000000"
+                android:type="linear" />
+        </shape>
+    </item>
+</layer-list>

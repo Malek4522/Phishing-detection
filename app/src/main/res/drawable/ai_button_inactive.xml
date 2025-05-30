@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Base circle -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/purple_primary" />
+            <size android:width="48dp" android:height="48dp" />
+        </shape>
+    </item>
+    <!-- AI logo -->
+    <item android:drawable="@drawable/ai_logo" />
+</layer-list>

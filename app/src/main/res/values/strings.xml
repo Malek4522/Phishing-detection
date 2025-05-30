@@ -37,7 +37,15 @@
     <string name="weekly_scanned">Weekly Scanned</string>
     <string name="links_count">%d Links</string>
     
+    <!-- URL Check Strings -->
+    <string name="url_check">URL Check</string>
+    <string name="enter_url">Enter URL to Check</string>
+    <string name="url_hint">https://example.com</string>
+    <string name="check_url">Check URL</string>
+    <string name="results_placeholder">URL check results will appear here</string>
+    
     <!-- Bottom Navigation -->
+    <string name="statistics">Statistics</string>
     <string name="home">Home</string>
     <string name="scan">Scan</string>
     <string name="history">History</string>

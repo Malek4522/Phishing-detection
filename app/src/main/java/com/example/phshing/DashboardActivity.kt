@@ -1,5 +1,6 @@
 package com.example.phshing
 
+import android.content.Intent
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.view.View
@@ -14,13 +15,26 @@ class DashboardActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dashboard)
         
-
+        // Set up bottom navigation
+        val bottomNavigation = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        bottomNavigation.selectedItemId = R.id.navigation_home // Set statistics tab as selected
+        
+        bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.navigation_home -> {
+                    // Already on statistics, do nothing
+                    true
+                }
+                R.id.navigation_scan -> {
+                    // Navigate to URL Check Activity
+                    val intent = Intent(this, UrlCheckActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_NO_ANIMATION
+                    startActivity(intent)
+                    false // Don't select this item as we're leaving this activity
+                }
+                else -> false
+            }
         }
-        
-
-        
-        // Populate dynamic data
-        // This would typically come from your data source or viewmodel
     }
     
     private fun setupStatisticsData() {
@@ -33,3 +47,4 @@ class DashboardActivity : AppCompatActivity() {
         // - Update gauge position based on percentage
         // - etc.
     }
+}
