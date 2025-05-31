@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/futuristic_card_background"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:elevation="8dp">
 
     <!-- Header with app logo and title -->
     <LinearLayout
@@ -16,7 +18,9 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/ai_logo"
+            android:src="@drawable/ic_launcher_foreground"
+            android:background="@drawable/notification_status_safe"
+            android:padding="2dp"
             android:contentDescription="GuardianAI Logo" />
 
         <TextView
@@ -73,42 +77,141 @@
         android:ellipsize="end"
         android:maxLines="1" />
 
-    <!-- Result with status indicator -->
+    <!-- Result with status indicator and risk level -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="12dp"
-        android:gravity="center_vertical">
-
-        <View
-            android:id="@+id/notification_status_indicator"
-            android:layout_width="12dp"
-            android:layout_height="12dp"
-            android:background="@drawable/notification_status_safe" />
-
-        <TextView
-            android:id="@+id/notification_status_text"
-            android:layout_width="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="12dp">
+        
+        <!-- Status row -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="SAFE"
-            android:textColor="@color/positive_green"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:layout_marginStart="8dp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <View
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
+            <View
+                android:id="@+id/notification_status_indicator"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:background="@drawable/notification_status_safe" />
 
+            <TextView
+                android:id="@+id/notification_status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SAFE"
+                android:textColor="@color/positive_green"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:layout_marginStart="8dp" />
+                
+            <!-- Risk percentage -->
+            <TextView
+                android:id="@+id/notification_risk_percentage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="5%"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:layout_marginStart="8dp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TAP FOR DETAILS"
+                android:textColor="@color/pink_accent"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+        
+        <!-- Risk description -->
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/notification_risk_description"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="TAP FOR DETAILS"
-            android:textColor="@color/pink_accent"
+            android:text="This URL appears to be safe with no signs of phishing or malicious content."
+            android:textColor="#B3FFFFFF"
             android:textSize="12sp"
-            android:textStyle="bold" />
+            android:layout_marginTop="4dp"
+            android:layout_marginStart="20dp" />
+            
+        <!-- Risk level indicator -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp">
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SAFE"
+                android:textColor="@color/positive_green"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+                
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MEDIUM"
+                android:textColor="#FFA000"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+                
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="HIGH"
+                android:textColor="#FF9800"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+                
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DANGER"
+                android:textColor="#F44336"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+        
+        <!-- Risk level progress -->
+        <ProgressBar
+            android:id="@+id/notification_risk_level"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginTop="2dp"
+            android:progress="5"
+            android:max="100"
+            android:progressTint="@color/positive_green"
+            android:progressBackgroundTint="#33FFFFFF" />
     </LinearLayout>
 
 </LinearLayout>

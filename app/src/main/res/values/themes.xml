@@ -11,4 +11,13 @@
     </style>
 
     <style name="Theme.Phshing" parent="Base.Theme.Phshing" />
+    
+    <!-- Custom dialog theme for notification popups -->
+    <style name="Theme.Phshing.Dialog" parent="ThemeOverlay.MaterialComponents.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowCloseOnTouchOutside">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.6</item>
+    </style>
 </resources>

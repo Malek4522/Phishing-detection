@@ -4,11 +4,9 @@
         android:id="@+id/active"
         android:drawable="@drawable/ai_button_active"
         android:state_checked="true" />
-    <item
-        android:id="@+id/inactive"
-        android:drawable="@drawable/ai_button_inactive" />
+
     <transition
-        android:fromId="@id/inactive"
+        android:fromId="@id/active"
         android:toId="@id/active"
         android:drawable="@drawable/ai_button_transition" />
 </animated-selector>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    
+    <!-- Central gem/crystal in purple/pink gradient -->
+    <path
+        android:fillColor="#9C27B0"
+        android:pathData="M12,6L8,10L12,18L16,10L12,6z"/>
+    
+    <!-- Highlight on gem -->
+    <path
+        android:fillColor="#E91E63"
+        android:pathData="M12,6L10,10L12,14L14,10L12,6z"/>
+</vector>

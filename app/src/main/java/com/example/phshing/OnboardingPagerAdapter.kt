@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.phshing.R
 import java.util.ArrayList
 
 class OnboardingPagerAdapter : RecyclerView.Adapter<OnboardingPagerAdapter.OnboardingViewHolder>() {
@@ -16,7 +17,7 @@ class OnboardingPagerAdapter : RecyclerView.Adapter<OnboardingPagerAdapter.Onboa
     // Initialize pages in constructor
     init {
         pages.add(OnboardingPage(
-            R.drawable.ai_logo,
+            R.drawable.secure_transaction_icon,
             R.string.onboarding_title_1,
             R.string.onboarding_desc_1
         ))

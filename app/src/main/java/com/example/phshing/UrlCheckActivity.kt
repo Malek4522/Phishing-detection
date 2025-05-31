@@ -4,6 +4,7 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.Manifest
 import android.os.Build
@@ -17,6 +18,7 @@ import android.view.animation.AnimationUtils
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -25,6 +27,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.example.phshing.R
 import com.example.phshing.api.PhishingApiClient
 import com.example.phshing.api.PhishingResult
 import com.example.phshing.service.RealTimeProtectionService
@@ -366,9 +369,26 @@ class UrlCheckActivity : AppCompatActivity() {
                     scanningContainer.visibility = View.GONE
                     scanningIcon.clearAnimation()
                     
-                    // Show results
+                    // Show results container
                     resultsContainer.visibility = View.VISIBLE
-                    val resultsText = findViewById<TextView>(R.id.results_placeholder)
+                    
+                    // Create a new instance of the simple card layout
+                    val simpleCardView = layoutInflater.inflate(R.layout.simple_url_result_card, null)
+                    
+                    // Clear previous views in the results container
+                    resultsContainer.removeAllViews()
+                    
+                    // Add the simple card layout to the results container
+                    resultsContainer.addView(simpleCardView)
+                    
+                    // Get references to the views in the simple card layout
+                    val urlTextView = simpleCardView.findViewById<TextView>(R.id.url_text)
+                    val statusTextView = simpleCardView.findViewById<TextView>(R.id.status_text)
+                    val statusIndicator = simpleCardView.findViewById<View>(R.id.status_indicator)
+                    val moreDetailsButton = simpleCardView.findViewById<Button>(R.id.more_details_button)
+                    
+                    // Set the URL
+                    urlTextView.text = url
                     
                     when (result) {
                         is PhishingResult.Success -> {
@@ -385,26 +405,108 @@ class UrlCheckActivity : AppCompatActivity() {
                             // Update UI based on risk level
                             when (riskLevel) {
                                 RiskLevel.SAFE -> {
-                                    resultsText.text = "✅ ${url}\n\nNo phishing threats detected.\nThis URL appears to be safe.\n\nConfidence: ${confidencePercent}%"
-                                    resultsText.setTextColor(getColor(R.color.positive_green))
+                                    statusTextView.text = "SAFE"
+                                    statusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, R.color.positive_green))
+                                    statusIndicator.setBackgroundResource(R.drawable.notification_status_safe)
                                 }
                                 RiskLevel.MEDIUM -> {
-                                    resultsText.text = "⚠️ ${url}\n\nPotential security concerns detected.\nProceed with caution.\n\nConfidence: ${confidencePercent}%"
-                                    resultsText.setTextColor(resources.getColor(android.R.color.holo_orange_dark))
+                                    statusTextView.text = "WARNING"
+                                    statusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_orange_dark))
+                                    statusIndicator.setBackgroundResource(R.drawable.notification_status_medium)
                                 }
                                 RiskLevel.CRITICAL -> {
-                                    resultsText.text = "❌ ${url}\n\nCRITICAL SECURITY THREAT DETECTED!\nAccess to this site has been blocked.\n\nConfidence: ${confidencePercent}%"
-                                    resultsText.setTextColor(resources.getColor(android.R.color.holo_red_light))
+                                    statusTextView.text = "DANGER"
+                                    statusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                                    statusIndicator.setBackgroundResource(R.drawable.notification_status_critical)
                                 }
+                            }
+                            
+                            // Update the mini risk level progress bar
+                            val miniRiskLevel = simpleCardView.findViewById<ProgressBar>(R.id.mini_risk_level)
+                            miniRiskLevel.progress = confidencePercent
+                            when (riskLevel) {
+                                RiskLevel.SAFE -> miniRiskLevel.progressTintList = ColorStateList.valueOf(ContextCompat.getColor(this@UrlCheckActivity, R.color.positive_green))
+                                RiskLevel.MEDIUM -> miniRiskLevel.progressTintList = ColorStateList.valueOf(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_orange_dark))
+                                RiskLevel.CRITICAL -> miniRiskLevel.progressTintList = ColorStateList.valueOf(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                            }
+                            
+                            // Set up the More Details button to show the enhanced notification as a popup
+                            moreDetailsButton.setOnClickListener {
+                                // Create dialog with the notification layout
+                                val dialog = androidx.appcompat.app.AlertDialog.Builder(this@UrlCheckActivity, R.style.Theme_Phshing_Dialog)
+                                    .create()
+                                
+                                // Inflate the notification layout
+                                val notificationView = layoutInflater.inflate(R.layout.notification_url_check, null)
+                                
+                                // Get references to the views in the notification layout
+                                val notifUrlTextView = notificationView.findViewById<TextView>(R.id.notification_url)
+                                val notifStatusTextView = notificationView.findViewById<TextView>(R.id.notification_status_text)
+                                val notifStatusIndicator = notificationView.findViewById<View>(R.id.notification_status_indicator)
+                                val notifTimestampView = notificationView.findViewById<TextView>(R.id.notification_timestamp)
+                                val notifRiskPercentageView = notificationView.findViewById<TextView>(R.id.notification_risk_percentage)
+                                val notifRiskDescriptionView = notificationView.findViewById<TextView>(R.id.notification_risk_description)
+                                val notifRiskLevelProgressBar = notificationView.findViewById<ProgressBar>(R.id.notification_risk_level)
+                                
+                                // Set the data in the notification layout
+                                notifUrlTextView.text = url
+                                notifTimestampView.text = "Just now"
+                                
+                                // Update UI based on risk level
+                                when (riskLevel) {
+                                    RiskLevel.SAFE -> {
+                                        notifStatusTextView.text = "SAFE"
+                                        notifStatusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, R.color.positive_green))
+                                        notifStatusIndicator.setBackgroundResource(R.drawable.notification_status_safe)
+                                        notifRiskPercentageView.text = "${confidencePercent}%"
+                                        notifRiskDescriptionView.text = "This URL appears to be safe with no signs of phishing or malicious content."
+                                        notifRiskLevelProgressBar.progress = confidencePercent
+                                        notifRiskLevelProgressBar.progressTintList = ColorStateList.valueOf(ContextCompat.getColor(this@UrlCheckActivity, R.color.positive_green))
+                                    }
+                                    RiskLevel.MEDIUM -> {
+                                        notifStatusTextView.text = "WARNING"
+                                        notifStatusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_orange_dark))
+                                        notifStatusIndicator.setBackgroundResource(R.drawable.notification_status_medium)
+                                        notifRiskPercentageView.text = "${confidencePercent}%"
+                                        notifRiskDescriptionView.text = "This URL shows some suspicious characteristics. Proceed with caution."
+                                        notifRiskLevelProgressBar.progress = confidencePercent
+                                        notifRiskLevelProgressBar.progressTintList = ColorStateList.valueOf(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_orange_dark))
+                                    }
+                                    RiskLevel.CRITICAL -> {
+                                        notifStatusTextView.text = "DANGER"
+                                        notifStatusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                                        notifStatusIndicator.setBackgroundResource(R.drawable.notification_status_critical)
+                                        notifRiskPercentageView.text = "${confidencePercent}%"
+                                        notifRiskDescriptionView.text = "CRITICAL SECURITY THREAT DETECTED! This URL is likely a phishing attempt."
+                                        notifRiskLevelProgressBar.progress = confidencePercent
+                                        notifRiskLevelProgressBar.progressTintList = ColorStateList.valueOf(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                                    }
+                                }
+                                
+                                // Set the view and show the dialog
+                                dialog.setView(notificationView)
+                                dialog.show()
                             }
                             
                             // Show notification with the scan result
                             NotificationHelper.showUrlScanNotification(this@UrlCheckActivity, url, riskLevel)
+                            
                         }
                         is PhishingResult.Error -> {
                             // Show error message
-                            resultsText.text = "Error checking URL: ${result.message}"
-                            resultsText.setTextColor(resources.getColor(android.R.color.holo_red_light))
+                            statusTextView.text = "ERROR"
+                            statusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                            statusIndicator.setBackgroundResource(R.drawable.notification_status_critical)
+                            
+                            // Set up the More Details button to show error details
+                            moreDetailsButton.setOnClickListener {
+                                // Show a dialog with error details
+                                val builder = androidx.appcompat.app.AlertDialog.Builder(this@UrlCheckActivity)
+                                builder.setTitle("Error")
+                                builder.setMessage("Error checking URL: ${result.message}")
+                                builder.setPositiveButton("OK", null)
+                                builder.show()
+                            }
                         }
                     }
                 }
@@ -415,11 +517,70 @@ class UrlCheckActivity : AppCompatActivity() {
                     scanningContainer.visibility = View.GONE
                     scanningIcon.clearAnimation()
                     
-                    // Show error message
+                    // Show results container
                     resultsContainer.visibility = View.VISIBLE
-                    val resultsText = findViewById<TextView>(R.id.results_placeholder)
-                    resultsText.text = "Error: ${e.message ?: "Unknown error occurred"}"
-                    resultsText.setTextColor(resources.getColor(android.R.color.holo_red_light))
+                    
+                    // Create a new instance of the simple card layout
+                    val simpleCardView = layoutInflater.inflate(R.layout.simple_url_result_card, null)
+                    
+                    // Clear previous views in the results container
+                    resultsContainer.removeAllViews()
+                    
+                    // Add the simple card layout to the results container
+                    resultsContainer.addView(simpleCardView)
+                    
+                    // Get references to the views in the simple card layout
+                    val urlTextView = simpleCardView.findViewById<TextView>(R.id.url_text)
+                    val statusTextView = simpleCardView.findViewById<TextView>(R.id.status_text)
+                    val statusIndicator = simpleCardView.findViewById<View>(R.id.status_indicator)
+                    val moreDetailsButton = simpleCardView.findViewById<Button>(R.id.more_details_button)
+                    
+                    // Set the URL
+                    urlTextView.text = url
+                    
+                    // Show error message
+                    statusTextView.text = "ERROR"
+                    statusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                    statusIndicator.setBackgroundResource(R.drawable.notification_status_critical)
+                    
+                    // Update the mini risk level progress bar for error
+                    val miniRiskLevel = simpleCardView.findViewById<ProgressBar>(R.id.mini_risk_level)
+                    miniRiskLevel.progress = 100
+                    miniRiskLevel.progressTintList = ColorStateList.valueOf(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                    
+                    // Set up the More Details button to show error details
+                    moreDetailsButton.setOnClickListener {
+                        // Create dialog with the notification layout for error
+                        val dialog = androidx.appcompat.app.AlertDialog.Builder(this@UrlCheckActivity, R.style.Theme_Phshing_Dialog)
+                            .create()
+                        
+                        // Inflate the notification layout
+                        val notificationView = layoutInflater.inflate(R.layout.notification_url_check, null)
+                        
+                        // Get references to the views in the notification layout
+                        val notifUrlTextView = notificationView.findViewById<TextView>(R.id.notification_url)
+                        val notifStatusTextView = notificationView.findViewById<TextView>(R.id.notification_status_text)
+                        val notifStatusIndicator = notificationView.findViewById<View>(R.id.notification_status_indicator)
+                        val notifTimestampView = notificationView.findViewById<TextView>(R.id.notification_timestamp)
+                        val notifRiskPercentageView = notificationView.findViewById<TextView>(R.id.notification_risk_percentage)
+                        val notifRiskDescriptionView = notificationView.findViewById<TextView>(R.id.notification_risk_description)
+                        val notifRiskLevelProgressBar = notificationView.findViewById<ProgressBar>(R.id.notification_risk_level)
+                        
+                        // Set the data in the notification layout
+                        notifUrlTextView.text = url
+                        notifTimestampView.text = "Just now"
+                        notifStatusTextView.text = "ERROR"
+                        notifStatusTextView.setTextColor(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                        notifStatusIndicator.setBackgroundResource(R.drawable.notification_status_critical)
+                        notifRiskPercentageView.text = "--"
+                        notifRiskDescriptionView.text = "Error: ${e.message ?: "Unknown error occurred"}\n\nPlease try again later."
+                        notifRiskLevelProgressBar.progress = 100
+                        notifRiskLevelProgressBar.progressTintList = ColorStateList.valueOf(ContextCompat.getColor(this@UrlCheckActivity, android.R.color.holo_red_light))
+                        
+                        // Set the view and show the dialog
+                        dialog.setView(notificationView)
+                        dialog.show()
+                    }
                 }
             }
         }

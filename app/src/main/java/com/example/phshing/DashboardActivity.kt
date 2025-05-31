@@ -6,6 +6,7 @@ import android.text.format.DateFormat
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
+import com.example.phshing.utils.AccessibilityUtil
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import java.util.Calendar
 
@@ -14,6 +15,9 @@ class DashboardActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dashboard)
+        
+        // Check if accessibility service is enabled and prompt user if needed
+        checkAccessibilityService()
         
         // Set up bottom navigation
         val bottomNavigation = findViewById<BottomNavigationView>(R.id.bottom_navigation)
@@ -46,5 +50,20 @@ class DashboardActivity : AppCompatActivity() {
         // - Calculate percentages
         // - Update gauge position based on percentage
         // - etc.
+    }
+    
+    /**
+     * Checks if the accessibility service is enabled and prompts the user if needed
+     */
+    private fun checkAccessibilityService() {
+        if (!AccessibilityUtil.isAccessibilityServiceEnabled(this)) {
+            AccessibilityUtil.showAccessibilityPromptDialog(this)
+        }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Check again when returning to the app, in case the user enabled the service
+        checkAccessibilityService()
     }
 }

@@ -18,5 +18,5 @@
         </shape>
     </item>
     <!-- AI logo -->
-    <item android:drawable="@drawable/ai_logo" />
+
 </layer-list>

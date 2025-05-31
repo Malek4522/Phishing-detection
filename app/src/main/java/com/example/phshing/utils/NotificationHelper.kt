@@ -25,8 +25,10 @@ object NotificationHelper {
 
     private const val CHANNEL_ID = "url_scan_channel"
     const val PROTECTION_CHANNEL_ID = "real_time_protection_channel"
+    private const val PHISHING_ALERT_CHANNEL_ID = "phishing_alert_channel"
     private const val NOTIFICATION_ID = 1001
     const val NOTIFICATION_ID_PROTECTION_ACTIVE = 1002
+    const val NOTIFICATION_ID_PHISHING_ALERT = 1003
 
     // Risk levels
     enum class RiskLevel {
@@ -60,6 +62,17 @@ object NotificationHelper {
                 enableVibration(false)
             }
             notificationManager.createNotificationChannel(protectionChannel)
+            
+            // Phishing Alert channel
+            val alertName = "Phishing Alerts"
+            val alertDescriptionText = "Shows alerts for detected phishing URLs"
+            val alertImportance = NotificationManager.IMPORTANCE_HIGH
+            val alertChannel = NotificationChannel(PHISHING_ALERT_CHANNEL_ID, alertName, alertImportance).apply {
+                description = alertDescriptionText
+                enableLights(true)
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(alertChannel)
         }
     }
 
@@ -136,7 +149,7 @@ object NotificationHelper {
         
         // Build a simple, reliable notification that can't be removed
         val builder = NotificationCompat.Builder(context, PROTECTION_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Use system icon for reliability
+            .setSmallIcon(android.R.drawable.ic_lock_lock) // Use system shield/lock icon for security app
             .setContentTitle("GUARDIAN AI Protection")
             .setContentText("Real-time protection is active")
             .setStyle(NotificationCompat.BigTextStyle()
@@ -192,5 +205,47 @@ object NotificationHelper {
     private fun getCurrentTime(): String {
         val dateFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
         return dateFormat.format(Date())
+    }
+    
+    /**
+     * Creates a notification for phishing alerts
+     * @param context The application context
+     * @param url The detected phishing URL
+     * @param message Additional details about the phishing detection
+     */
+    fun createPhishingAlertNotification(context: Context, url: String, message: String): NotificationCompat.Builder {
+        // Create an intent to open the URL check activity when notification is tapped
+        val contentIntent = Intent(context, UrlCheckActivity::class.java).apply {
+            putExtra("url", url)
+            putExtra("fromNotification", true)
+        }
+        
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            Random.nextInt(), // Use random request code to ensure uniqueness
+            contentIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        // Build a high-priority alert notification
+        return NotificationCompat.Builder(context, PHISHING_ALERT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("⚠️ Phishing URL Detected")
+            .setContentText("A potentially dangerous URL was detected: $url")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .setBigContentTitle("⚠️ Phishing URL Detected")
+                .bigText("A potentially dangerous URL was detected:\n$url\n\n$message"))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setContentIntent(contentPendingIntent)
+    }
+    
+    /**
+     * Shows a notification with proper permission checking
+     */
+    fun showNotification(context: Context, notificationId: Int, notification: Notification) {
+        showNotificationWithPermissionCheck(context, notificationId, notification)
     }
 }

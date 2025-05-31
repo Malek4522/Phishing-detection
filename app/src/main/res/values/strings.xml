@@ -49,5 +49,8 @@
     <string name="home">Home</string>
     <string name="scan">Scan</string>
     <string name="history">History</string>
+    
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_description">Monitors screen content for phishing URLs to protect you from malicious websites.</string>
     <string name="settings">Settings</string>
 </resources>
