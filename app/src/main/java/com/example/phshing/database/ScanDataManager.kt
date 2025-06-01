@@ -30,6 +30,22 @@ class ScanDataManager(private val context: Context) {
     }
     
     /**
+     * Add a ScanRecord directly to the database
+     * This is used by Layer 2 - Universal Link Hook functionality
+     */
+    fun addScan(scanRecord: ScanRecord): Long {
+        val id = dbHelper.addScan(scanRecord)
+        
+        // Also update the preferences for backward compatibility
+        PreferencesManager.incrementTotalScannedLinks(context)
+        if (scanRecord.isPhishing) {
+            PreferencesManager.incrementPhishingDetectedCount(context)
+        }
+        
+        return id
+    }
+    
+    /**
      * Get total number of scanned links
      */
     fun getTotalScannedCount(): Int {

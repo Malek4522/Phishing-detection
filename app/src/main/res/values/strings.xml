@@ -61,4 +61,16 @@
     <!-- Accessibility Service -->
     <string name="accessibility_service_description">Monitors screen content for phishing URLs to protect you from malicious websites.</string>
     <string name="settings">Settings</string>
+    
+    <!-- Cache Settings -->
+    <string name="cache_settings">Cache Settings</string>
+    <string name="cache_settings_description">Manage URL cache to optimize app performance</string>
+    <string name="clear_cache">Clear URL Cache</string>
+    <string name="auto_clear_cache">Auto-clear cache:</string>
+    <string-array name="auto_clear_cache_options">
+        <item>Never (Manual only)</item>
+        <item>Daily</item>
+        <item>Weekly</item>
+        <item>Monthly</item>
+    </string-array>
 </resources>

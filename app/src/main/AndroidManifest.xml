@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
 
     <application
+        android:name=".PhishingApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -35,8 +36,68 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".LinkInterceptorActivity"
+            android:exported="true">
+            <!-- Lower priority than MainContainerActivity to prevent loops -->
+            <intent-filter android:priority="900">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".MainContainerActivity"
-            android:exported="false" />
+            android:exported="true">
+            <!-- Primary filter to intercept all clicked links with high priority -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+            
+            <!-- Browser alternative filter to appear in browser selection dialog -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.APP_BROWSER" />
+            </intent-filter>
+            
+            <!-- Additional filter to handle web links -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+            
+            <!-- Custom action for showing phishing warnings -->
+            <intent-filter>
+                <action android:name="com.example.phshing.ACTION_SHOW_PHISHING_WARNING" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            
+            <!-- High priority filter for specific mimetypes -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/xhtml+xml" />
+            </intent-filter>
+            <!-- Intent filter for handling shared links from Gmail and other apps -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
         <!-- Legacy activities kept for backward compatibility -->
         <!-- These activities now redirect to MainContainerActivity with appropriate fragment parameters -->
         <activity
@@ -48,6 +109,13 @@
         <activity
             android:name=".UrlCheckActivity"
             android:exported="false" />
+            
+        <!-- WebView fallback activity for when no browsers are available -->
+        <activity
+            android:name=".WebViewActivity"
+            android:exported="false"
+            android:label="Web View"
+            android:parentActivityName=".MainContainerActivity" />
             
         <!-- Real-time protection service -->
         <service

@@ -7,18 +7,30 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.Spinner
 import android.widget.Toast
 import androidx.appcompat.widget.SwitchCompat
 import androidx.cardview.widget.CardView
 import androidx.fragment.app.Fragment
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.phshing.R
 import com.example.phshing.service.RealTimeProtectionService
 import com.example.phshing.utils.AccessibilityUtil
+import com.example.phshing.utils.AppLinkHelper
 import com.example.phshing.utils.PreferencesManager
+import com.example.phshing.cache.UrlCacheDatabase
+import com.example.phshing.workers.CacheClearWorker
+import java.util.concurrent.TimeUnit
 
 class SettingsFragment : Fragment() {    
     // Handler for UI updates
@@ -35,6 +47,10 @@ class SettingsFragment : Fragment() {
     private lateinit var layer1Glow: View
     private lateinit var layer2Glow: View
     private lateinit var bothLayersGlow: View
+    
+    // Cache settings UI elements
+    private lateinit var clearCacheButton: Button
+    private lateinit var autoClearSpinner: Spinner
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -70,11 +86,18 @@ class SettingsFragment : Fragment() {
         layer2Glow = view.findViewById(R.id.layer2_glow)
         bothLayersGlow = view.findViewById(R.id.both_layers_glow)
         
+        // Initialize cache settings UI elements
+        clearCacheButton = view.findViewById(R.id.clear_cache_button)
+        autoClearSpinner = view.findViewById(R.id.auto_clear_spinner)
+        
         // Load current settings
         loadSettings()
         
         // Set up click listeners
         setupClickListeners()
+        
+        // Set up cache settings
+        setupCacheSettings()
     }
     
     private fun loadSettings() {
@@ -86,6 +109,101 @@ class SettingsFragment : Fragment() {
             
             // Update glow effects
             updateGlowEffects()
+        }
+    }
+    
+    /**
+     * Set up cache settings UI and functionality
+     */
+    private fun setupCacheSettings() {
+        context?.let { ctx ->
+            // Set up spinner with auto-clear options
+            val autoClearOptions = resources.getStringArray(R.array.auto_clear_cache_options)
+            val adapter = ArrayAdapter(ctx, android.R.layout.simple_spinner_item, autoClearOptions)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            autoClearSpinner.adapter = adapter
+            
+            // Set the spinner to the saved preference
+            val currentInterval = PreferencesManager.getAutoClearCacheInterval(ctx)
+            autoClearSpinner.setSelection(currentInterval)
+            
+            // Set up spinner listener
+            autoClearSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    PreferencesManager.setAutoClearCacheInterval(ctx, position)
+                    
+                    // Schedule auto-clear based on selection
+                    scheduleAutoClearCache(position)
+                }
+                
+                override fun onNothingSelected(parent: AdapterView<*>?) {
+                    // Do nothing
+                }
+            }
+            
+            // Set up clear cache button
+            clearCacheButton.setOnClickListener {
+                clearUrlCache()
+            }
+        }
+    }
+    
+    /**
+     * Schedule automatic cache clearing based on selected interval
+     */
+    private fun scheduleAutoClearCache(intervalPosition: Int) {
+        // Cancel any existing scheduled tasks
+        WorkManager.getInstance(requireContext()).cancelAllWorkByTag("auto_clear_cache")
+        
+        // If "Never" is selected (position 0), don't schedule anything
+        if (intervalPosition == 0) return
+        
+        // Determine the repeat interval based on selection
+        val repeatInterval = when (intervalPosition) {
+            1 -> 24 * 60 * 60 * 1000L // Daily (24 hours)
+            2 -> 7 * 24 * 60 * 60 * 1000L // Weekly
+            3 -> 30 * 24 * 60 * 60 * 1000L // Monthly (approx)
+            else -> return
+        }
+        
+        // Create a periodic work request
+        val workRequest = PeriodicWorkRequestBuilder<CacheClearWorker>(
+            repeatInterval, TimeUnit.MILLISECONDS
+        )
+            .addTag("auto_clear_cache")
+            .build()
+        
+        // Enqueue the work request
+        WorkManager.getInstance(requireContext())
+            .enqueueUniquePeriodicWork(
+                "auto_clear_cache",
+                ExistingPeriodicWorkPolicy.REPLACE,
+                workRequest
+            )
+        
+        Toast.makeText(
+            context,
+            "Auto-clear cache scheduled: ${resources.getStringArray(R.array.auto_clear_cache_options)[intervalPosition]}",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+    
+    /**
+     * Clear the URL cache and show a toast
+     */
+    private fun clearUrlCache() {
+        context?.let { ctx ->
+            // Clear the URL cache
+            val cacheCleared = UrlCacheDatabase.clearCache(ctx)
+            
+            // Show toast with result
+            val message = if (cacheCleared) {
+                "URL cache cleared successfully"
+            } else {
+                "Failed to clear URL cache"
+            }
+            
+            Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -131,7 +249,12 @@ class SettingsFragment : Fragment() {
                 PreferencesManager.setBothLayersActive(ctx, bothActive)
                 
                 updateGlowEffects()
-                // Toast notifications removed as requested
+                
+                // If Layer 2 is being disabled, prompt to clear default browser status
+                if (!isChecked && !bothActive) {
+                    // Only prompt if Layer 2 is completely disabled (not active in "both layers" mode)
+                    AppLinkHelper.clearDefaultBrowser(ctx)
+                }
                 
                 // Restart protection service if it's currently active
                 restartProtectionServiceIfActive(ctx)
@@ -158,7 +281,16 @@ class SettingsFragment : Fragment() {
                 } else {
                     // Both layers should be inactive
                     PreferencesManager.setBothLayersActive(ctx, false)
-                    // Toast notifications removed as requested
+                    
+                    // If Layer 2 was previously active and is now being disabled,
+                    // prompt to clear default browser status
+                    if (switchLayer2.isChecked) {
+                        AppLinkHelper.clearDefaultBrowser(ctx)
+                    }
+                    
+                    // Update individual switches
+                    switchLayer1.isChecked = false
+                    switchLayer2.isChecked = false
                 }
                 
                 updateGlowEffects()

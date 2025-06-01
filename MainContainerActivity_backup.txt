@@ -1,0 +1,1139 @@
+package com.example.phshing
+
+import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.ResolveInfo
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.util.Log
+import android.util.Patterns
+import android.view.MenuItem
+import android.view.View
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import com.example.phshing.api.ApiException
+import com.example.phshing.api.ErrorType
+import com.example.phshing.api.PhishingApiClient
+import com.example.phshing.cache.UrlCacheDatabase
+import com.example.phshing.database.ScanDataManager
+import com.example.phshing.database.ScanRecord
+import com.example.phshing.fragments.DashboardFragment
+import com.example.phshing.fragments.SettingsFragment
+import com.example.phshing.fragments.UrlCheckFragment
+import com.example.phshing.utils.AppLinkHelper
+import com.example.phshing.utils.NotificationHelper
+import com.example.phshing.utils.PreferencesManager
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * Main container activity that hosts all fragments and handles universal link interception (Layer 2)
+ */
+class MainContainerActivity : AppCompatActivity() {
+
+    // Track URL handling attempts to detect and break loops
+    companion object {
+        private val urlHandlingCount = mutableMapOf<String, Int>()
+        private const val MAX_HANDLING_COUNT = 2 // Maximum times to handle the same URL
+    }
+
+    private lateinit var bottomNavigationView: BottomNavigationView
+    private lateinit var scanDataManager: ScanDataManager
+
+    // Launcher for browser role request
+    private lateinit var browserRoleLauncher: ActivityResultLauncher<Intent>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main_container)
+
+        // Initialize scan data manager for database operations
+        scanDataManager = ScanDataManager(this)
+
+        // Initialize browser role launcher
+        browserRoleLauncher = AppLinkHelper.registerBrowserRoleLauncher(this)
+
+        bottomNavigationView = findViewById(R.id.bottom_navigation)
+
+        // Set up bottom navigation
+        setupBottomNavigation()
+
+        // Set the default selected item
+        bottomNavigationView.selectedItemId = R.id.navigation_dashboard
+
+        // Check if we're being restored from a previous state
+        if (savedInstanceState == null) {
+            // Load default fragment
+            loadFragment(DashboardFragment.newInstance())
+        }
+
+        // Handle the intent - this includes both navigation intents and universal links
+        handleIntent(intent)
+
+        // Check if Layer 2 is active and prompt for default link handler if needed
+        if (PreferencesManager.isLayer2Active(this) || PreferencesManager.areBothLayersActive(this)) {
+            checkDefaultLinkHandlerStatus()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Check for default browser status if needed
+        if (PreferencesManager.isLayer2Active(this) || PreferencesManager.areBothLayersActive(this)) {
+            checkDefaultLinkHandlerStatus()
+        }
+    }
+
+    /**
+     * Checks if our app is the default link handler and prompts the user if not
+     */
+    private fun checkDefaultLinkHandlerStatus() {
+        // Only check if Layer 2 is active (we need to be default browser for Layer 2)
+        if (!PreferencesManager.isLayer2Active(this) && !PreferencesManager.areBothLayersActive(this)) {
+            return
+        }
+
+        // Check if we're already the default browser
+        if (AppLinkHelper.isDefaultLinkHandler(this)) {
+            Log.d("MainContainer", "We are already the default browser")
+            return
+        }
+
+        // Check if we've already shown the prompt recently
+        if (PreferencesManager.hasShownDefaultBrowserPrompt(this)) {
+            val lastPromptTime = PreferencesManager.getLastDefaultBrowserPromptTime(this)
+            val currentTime = System.currentTimeMillis()
+            val dayInMillis = 24 * 60 * 60 * 1000L
+
+            // Only show the prompt once per day
+            if ((currentTime - lastPromptTime) < dayInMillis) {
+                Log.d("MainContainer", "Skipping default browser prompt, already shown today")
+                return
+            }
+        }
+
+        // Show the default browser prompt
+        AlertDialog.Builder(this)
+            .setTitle("Set as Default Browser")
+            .setMessage("For full protection against phishing links, this app needs to be set as your default browser. Would you like to set it now?")
+            .setPositiveButton("Set as Default") { _, _ ->
+                // Mark that we've shown the prompt
+                PreferencesManager.setHasShownDefaultBrowserPrompt(this, true)
+                PreferencesManager.setLastDefaultBrowserPromptTime(this, System.currentTimeMillis())
+
+                // Open the default app settings
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
+                    startActivity(intent)
+
+                    // Show a toast with instructions
+                    Toast.makeText(
+                        this,
+                        "Select 'Browser app' and choose this app",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .setNegativeButton("Later") { _, _ ->
+                // Mark that we've shown the prompt
+                PreferencesManager.setHasShownDefaultBrowserPrompt(this, true)
+                PreferencesManager.setLastDefaultBrowserPromptTime(this, System.currentTimeMillis())
+            }
+            .show()
+    }
+
+    private fun setupBottomNavigation() {
+        bottomNavigationView.setOnItemSelectedListener { item: MenuItem ->
+            when (item.itemId) {
+                R.id.navigation_dashboard -> {
+                    loadFragment(DashboardFragment.newInstance())
+                    return@setOnItemSelectedListener true
+                }
+
+                R.id.navigation_url_check -> {
+                    loadFragment(UrlCheckFragment.newInstance())
+                    return@setOnItemSelectedListener true
+                }
+
+                R.id.navigation_settings -> {
+                    loadFragment(SettingsFragment.newInstance())
+                    return@setOnItemSelectedListener true
+                }
+            }
+            false
+        }
+    }
+
+    private fun loadFragment(fragment: Fragment) {
+        supportFragmentManager
+            .beginTransaction()
+            .setCustomAnimations(
+                R.anim.slide_in_right,
+                R.anim.slide_out_left,
+                R.anim.slide_in_left,
+                R.anim.slide_out_right
+            )
+            .replace(R.id.fragment_container, fragment)
+            .commit()
+    }
+
+    /**
+     * Handle both navigation intents, universal links (Layer 2), and shared URLs
+     */
+    private fun handleIntent(intent: Intent?) {
+        if (intent == null) return
+
+        // Log the intent action and data for debugging
+        Log.d("MainContainer", "Intent received: ${intent.action}, data: ${intent.data}")
+
+        when (intent.action) {
+            // Handle internal navigation intents
+            Intent.ACTION_MAIN -> {
+                // Check if we have navigation parameters
+                if (intent.hasExtra("fragment")) {
+                    // Handle navigation based on fragment parameter
+                    val fragmentName = intent.getStringExtra("fragment")
+                    when (fragmentName) {
+                        "dashboard" -> {
+                            bottomNavigationView.selectedItemId = R.id.navigation_dashboard
+                            loadFragment(DashboardFragment.newInstance())
+                        }
+
+                        "url_check" -> {
+                            bottomNavigationView.selectedItemId = R.id.navigation_url_check
+                            val url = intent.getStringExtra("url")
+                            if (url != null) {
+                                loadFragment(UrlCheckFragment.newInstance(url, true))
+                            } else {
+                                loadFragment(UrlCheckFragment.newInstance())
+                            }
+                        }
+
+                        "settings" -> {
+                            bottomNavigationView.selectedItemId = R.id.navigation_settings
+                            loadFragment(SettingsFragment.newInstance())
+                        }
+                    }
+                }
+            }
+
+            // Handle universal links (Layer 2 protection)
+            Intent.ACTION_VIEW -> {
+                val uri = intent.data
+                if (uri != null) {
+                    // Always scan the URL and display in the scan page
+                    val url = uri.toString()
+                    Log.d("MainContainer", "Processing clicked URL: $url")
+
+                    // Navigate to URL check fragment and trigger automatic scan
+                    bottomNavigationView.selectedItemId = R.id.navigation_url_check
+                    loadFragment(UrlCheckFragment.newInstance(url, true))
+
+                    // Perform the scan and handle the result
+                    scanUrlAndHandleResult(url)
+                }
+            }
+
+            "com.example.phshing.ACTION_SHOW_PHISHING_WARNING" -> {
+                val url = intent.getStringExtra("url")
+                val confidence = intent.getDoubleExtra("confidence", 0.0)
+                if (url != null) {
+                    val riskPercent = (confidence * 100).toInt().coerceIn(1, 100)
+                    bottomNavigationView.selectedItemId = R.id.navigation_url_check
+                    loadFragment(UrlCheckFragment.newInstance(url, true))
+                    showPhishingWarningDialog(url, confidence)
+                }
+            }
+
+            // Handle shared URLs from other apps
+            Intent.ACTION_SEND -> {
+                if (intent.type == "text/plain") {
+                    val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                    if (!sharedText.isNullOrEmpty()) {
+                        Log.d("MainContainer", "Received shared text: $sharedText")
+
+                        // Extract URL from shared text (if it contains a URL)
+                        val urlPattern = Patterns.WEB_URL.toRegex()
+                        val matcher = urlPattern.find(sharedText)
+
+                        if (matcher != null) {
+                            val url = matcher.value
+                            Log.d("MainContainer", "Extracted URL from shared text: $url")
+
+                            // Navigate to URL check fragment with the shared URL and set autoScan to true
+                            bottomNavigationView.selectedItemId = R.id.navigation_url_check
+                            loadFragment(UrlCheckFragment.newInstance(url, true))
+                        } else {
+                            // If no URL found, still navigate to URL check fragment and put the text in the input
+                            // Also set autoScan to true to trigger scan automatically
+                            bottomNavigationView.selectedItemId = R.id.navigation_url_check
+                            loadFragment(UrlCheckFragment.newInstance(sharedText, true))
+                        }
+                    }
+                }
+            }
+
+            // Handle other intents as needed
+            else -> {
+                Log.d("MainContainer", "Unhandled intent action: ${intent.action}")
+            }
+        }
+    }
+
+    /**
+     * Handle Layer 2 - Universal Link Hook functionality
+     * Intercepts URLs and scans them before allowing redirection
+     */
+    private fun handleUniversalLink(url: String) {
+        // Check if Layer 2 protection is active
+        if (!PreferencesManager.isLayer2Active(this@MainContainerActivity)) {
+            // Layer 2 is disabled, open URL directly
+            openUrlInBrowser(url)
+            finish()
+            return
+        }
+
+        // First check if URL is in our unified cache (faster than SharedPreferences)
+        if (UrlCacheDatabase.isUrlCached(this@MainContainerActivity, url)) {
+            Log.d("MainContainer", "URL found in unified cache, opening directly: $url")
+            // Make sure it's also in the legacy cache for backward compatibility
+            if (!PreferencesManager.isUrlApproved(this@MainContainerActivity, url)) {
+                PreferencesManager.addApprovedUrl(this@MainContainerActivity, url)
+            }
+            openUrlInBrowser(url)
+
+            // Navigate to URL check page with the cached URL
+            loadFragment(UrlCheckFragment.newInstance(url, false))
+            // Update bottom navigation to show URL check tab as selected
+            bottomNavigationView.selectedItemId = R.id.navigation_url_check
+            return
+        }
+
+        // Then check if URL is in approved list (legacy support)
+        if (PreferencesManager.isUrlApproved(this@MainContainerActivity, url)) {
+            Log.d("MainContainer", "URL found in legacy cache, adding to unified cache: $url")
+            // URL is approved in legacy cache, add to unified cache for future lookups
+            UrlCacheDatabase.cacheUrl(this@MainContainerActivity, url)
+            openUrlInBrowser(url)
+
+            // Navigate to URL check page with the cached URL
+            loadFragment(UrlCheckFragment.newInstance(url, false))
+            // Update bottom navigation to show URL check tab as selected
+            bottomNavigationView.selectedItemId = R.id.navigation_url_check
+            return
+        }
+
+        // Check if we've handled this URL too many times to prevent loops
+        val count = urlHandlingCount.getOrDefault(url, 0)
+        if (count >= MAX_HANDLING_COUNT) {
+            Log.d("MainContainer", "URL handling count exceeded for: $url, count: $count")
+            // Use WebView as a fallback to break the loop
+            openInWebView(url)
+            finish()
+            return
+        }
+
+        // Increment the handling count for this URL
+        urlHandlingCount[url] = count + 1
+
+        // Show a dialog with a progress bar
+        val dialogBuilder = AlertDialog.Builder(this@MainContainerActivity)
+        val dialogView = layoutInflater.inflate(R.layout.simple_url_result_card, null)
+        dialogBuilder.setView(dialogView)
+        dialogBuilder.setCancelable(false)
+
+        val dialog = dialogBuilder.create()
+        dialog.show()
+
+        // Get references to dialog views
+        val urlTextView = dialogView.findViewById<TextView>(R.id.url_text)
+        val statusTextView = dialogView.findViewById<TextView>(R.id.status_text)
+        val cancelButton = dialogView.findViewById<Button>(R.id.more_details_button)
+
+        // Set the URL text
+        urlTextView.text = url
+
+        // Set up cancel button
+        cancelButton.text = "CANCEL"
+        cancelButton.setOnClickListener {
+            dialog.dismiss()
+            finish()
+        }
+
+        // Use coroutine to perform the scan
+        lifecycleScope.launch {
+            try {
+                // Update status
+                statusTextView.text = "Scanning URL..."
+
+                // Call the API to scan the URL
+                val result = PhishingApiClient.scanUrl(url, cancelOnError = true)
+
+                // Dismiss the dialog
+                dialog.dismiss()
+
+                if (result.isPhishing) {
+                    // URL is suspicious, show warning
+                    Log.d(
+                        "MainContainer",
+                        "Phishing detected: $url, confidence: ${result.confidence}"
+                    )
+
+                    // Save the scan result to the database
+                    val scanRecord = ScanRecord.createScan(
+                        url = url,
+                        isPhishing = true,
+                        severityScore = result.confidence.toFloat()
+                    )
+                    scanDataManager.addScan(scanRecord)
+
+                    // Show warning dialog
+                    showPhishingWarningDialog(url, result.confidence)
+                } else {
+                    // URL is safe, open it
+                    Log.d("MainContainer", "URL is safe: $url")
+
+                    // Save the scan result to the database
+                    val scanRecord = ScanRecord.createScan(
+                        url = url,
+                        isPhishing = false
+                    )
+                    scanDataManager.addScan(scanRecord)
+
+                    // Add to unified cache and open the URL
+                    UrlCacheDatabase.cacheUrl(this@MainContainerActivity, url)
+                    openUrlInBrowser(url)
+
+                    // Navigate to URL check page with the scanned URL
+                    loadFragment(UrlCheckFragment.newInstance(url, false))
+                    // Update bottom navigation to show URL check tab as selected
+                    bottomNavigationView.selectedItemId = R.id.navigation_url_check
+                }
+            } catch (e: ApiException) {
+                // Handle API exceptions specifically
+                dialog.dismiss()
+
+                Log.e("MainContainer", "API error scanning URL: ${e.message}")
+
+                // Create error dialog
+                val errorDialogBuilder = AlertDialog.Builder(this@MainContainerActivity)
+                val errorDialogView = layoutInflater.inflate(R.layout.error_result_layout, null)
+                errorDialogBuilder.setView(errorDialogView)
+
+                val errorDialog = errorDialogBuilder.create()
+
+                // Get references to error dialog views
+                val errorTitleTextView = errorDialogView.findViewById<TextView>(R.id.result_title)
+                val errorMessageTextView =
+                    errorDialogView.findViewById<TextView>(R.id.error_message)
+                val retryButton = errorDialogView.findViewById<Button>(R.id.retry_button)
+
+                // Set error title based on error type
+                when (e.errorType) {
+                    ErrorType.API_ERROR -> errorTitleTextView.text = "API Error"
+                    ErrorType.NETWORK -> errorTitleTextView.text = "Network Error"
+                    ErrorType.TIMEOUT -> errorTitleTextView.text = "Connection Timeout"
+                    ErrorType.CANCELLED -> errorTitleTextView.text = "Request Cancelled"
+                    ErrorType.UNKNOWN -> errorTitleTextView.text = "Unknown Error"
+                    else -> errorTitleTextView.text = "Unknown Error Type"
+                }
+
+                // Set error message
+                errorMessageTextView.text =
+                    "We couldn't verify if this URL is safe: ${e.message}\n\nFor your security, we've canceled opening this link."
+
+                // Update retry button to act as cancel button
+                try {
+                    retryButton.text = "Cancel"
+                    retryButton.setOnClickListener {
+                        errorDialog.dismiss()
+                        finish()
+                    }
+                } catch (e: Exception) {
+                    // If updating button fails, log the error
+                    Log.e("MainContainerActivity", "Error updating button: ${e.message}")
+                }
+
+                errorDialog.show()
+            } catch (e: Exception) {
+                // Handle other exceptions
+                dialog.dismiss()
+
+                Log.e("MainContainer", "Error scanning URL: ${e.message}")
+
+                // Show error toast
+                Toast.makeText(
+                    this@MainContainerActivity,
+                    "Error scanning URL: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                // For general errors, we'll still open the URL but with a warning
+                AlertDialog.Builder(this@MainContainerActivity)
+                    .setTitle("⚠️ Warning")
+                    .setMessage("We couldn't verify if this URL is safe due to an error: ${e.message}\n\nDo you still want to open it?")
+                    .setPositiveButton("Open Anyway") { _, _ ->
+                        openUrlInBrowser(url)
+                        finish()
+                    }
+                    .setNegativeButton("Cancel") { _, _ ->
+                        finish()
+                    }
+                    .show()
+            }
+        }
+    }
+
+    // Severity calculation is now handled by ScanRecord.createScan
+
+    /**
+     * Scans a URL and handles the result based on whether it's safe or not
+     * Safe URLs are opened directly in Chrome
+     * Unsafe URLs prompt the user if they want to open anyway
+     */
+    /**
+     * Shows a warning dialog for phishing URLs with option to open anyway
+     */
+    private fun showPhishingWarningDialog(url: String, confidence: Double) {
+        val riskPercent = (confidence * 100).toInt().coerceIn(1, 100)
+        AlertDialog.Builder(this@MainContainerActivity)
+            .setTitle("⚠️ Phishing Detected!")
+            .setMessage("This URL has been identified as a potential phishing attempt with $riskPercent% confidence.\n\nURL: $url\n\nDo you still want to open it?")
+            .setPositiveButton("Open Anyway") { _, _ ->
+                // Add URL to both caches to prevent rescanning
+                UrlCacheDatabase.cacheUrl(this@MainContainerActivity, url)
+                // Keep legacy support for backward compatibility
+                PreferencesManager.addApprovedUrl(this@MainContainerActivity, url)
+
+                // Open in Chrome with special flags to prevent loops
+                openUrlInChrome(url)
+
+                // Don't finish if this is the root task (main app screen)
+                if (!isTaskRoot) {
+                    finish()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .setCancelable(true)
+            .show()
+    }
+
+    private fun scanUrlAndHandleResult(url: String) {
+        // Check if URL is in our unified cache (faster than SharedPreferences)
+        if (UrlCacheDatabase.isUrlCached(this@MainContainerActivity, url)) {
+            Log.d("MainContainer", "URL found in unified cache, opening directly: $url")
+            // URL is already verified, open it directly
+            openUrlInChrome(url)
+            // Finish this activity to prevent loops
+            finish()
+            return
+        }
+
+        // Use coroutine to perform the scan
+        lifecycleScope.launch {
+            try {
+                // Call the API to scan the URL
+                val result = PhishingApiClient.scanUrl(url, cancelOnError = true)
+
+                // Save the scan result to the database
+                val scanRecord = ScanRecord.createScan(
+                    url = url,
+                    isPhishing = result.isPhishing,
+                    severityScore = if (result.isPhishing) result.confidence.toFloat() else 0f
+                )
+                scanDataManager.addScan(scanRecord)
+
+                if (result.isPhishing) {
+                    // URL is suspicious, show warning dialog
+                    Log.d(
+                        "MainContainer",
+                        "Phishing detected: $url, confidence: ${result.confidence}"
+                    )
+
+                    // Show warning dialog asking if user wants to open anyway
+                    withContext(Dispatchers.Main) {
+                        val confidence = result.confidence
+                        showPhishingWarningDialog(url, confidence)
+                    }
+                } else {
+                    // URL is safe, open it directly in Chrome
+                    Log.d("MainContainer", "URL is safe: $url")
+
+                    // Add to unified cache
+                    UrlCacheDatabase.cacheUrl(this@MainContainerActivity, url)
+
+                    // Open the URL in Chrome
+                    openUrlInChrome(url)
+
+                    // Finish this activity to prevent loops
+                    finish()
+                }
+            } catch (e: Exception) {
+                // Handle errors
+                Log.e("MainContainer", "Error scanning URL: ${e.message}")
+
+                // Show error dialog
+                withContext(Dispatchers.Main) {
+                    AlertDialog.Builder(this@MainContainerActivity)
+                        .setTitle("Error Scanning URL")
+                        .setMessage("We couldn't verify if this URL is safe due to an error: ${e.message}\n\nDo you still want to open it?")
+                        .setPositiveButton("Open Anyway") { _, _ ->
+                            openUrlInChrome(url)
+                            finish()
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            }
+        }
+    }
+    
+    /**
+     * Opens a URL in an external browser (not Chrome)
+     */
+    private fun openUrlInExternalBrowser(url: String) {
+        try {
+            // Get a list of all browser packages except our own
+            val browsers = getBrowserPackages()
+
+            if (browsers.isNotEmpty()) {
+                // Create intent for first available browser
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                browserIntent.setPackage(browsers[0])
+                browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                this@MainContainerActivity.startActivity(browserIntent)
+                Log.d("MainContainer", "Opened URL in external browser: ${browsers[0]}")
+            } else {
+                // No browsers available, use WebView as fallback
+                openInWebView(url)
+            }
+        } catch (e: Exception) {
+            // If opening in external browser fails, try WebView
+            Log.e("MainContainer", "Error opening URL in external browser: ${e.message}")
+            openInWebView(url)
+        }
+    }
+    
+    /**
+     * Opens a URL in our internal WebView to avoid infinite loops
+     */
+    private fun openInWebView(url: String) {
+        Log.d("MainContainer", "Opening URL in WebView: $url")
+
+        // Mark this URL as approved to prevent future scanning
+        PreferencesManager.addApprovedUrl(this@MainContainerActivity, url)
+
+        // Open in our WebView activity
+        val intent = Intent(this@MainContainerActivity, WebViewActivity::class.java)
+        intent.putExtra("url", url)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        this@MainContainerActivity.startActivity(intent)
+    }
+
+                /**
+                 * Opens a URL in the browser
+                 */
+                private fun openUrlInBrowser(url: String) {
+                    // Add the URL to a set of approved URLs in preferences
+                    // This will prevent re-scanning when the user has explicitly chosen to open it
+                    PreferencesManager.addApprovedUrl(this@MainContainerActivity, url)
+
+                    // Check if we're the default browser
+                    if (AppLinkHelper.isDefaultLinkHandler(this@MainContainerActivity)) {
+                        Log.d(
+                            "MainContainer",
+                            "We are the default browser, using alternative method to open URL"
+                        )
+                        // We're the default browser, so we need to use a different approach
+                        // to avoid an infinite loop
+
+                        // Try Chrome first
+                        try {
+                            val chromeIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            chromeIntent.setPackage("com.android.chrome")
+                            chromeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            this@MainContainerActivity.startActivity(chromeIntent)
+                            Log.d("MainContainer", "Opened URL with Chrome")
+                            return
+                        } catch (e: Exception) {
+                            Log.e("MainContainer", "Failed to open with Chrome: ${e.message}")
+                            // Chrome not available, try other browsers
+                        }
+
+                        // Try to find an explicit browser package
+                        val browserPackages = getBrowserPackages()
+                        if (browserPackages.isNotEmpty()) {
+                            // Use the first available browser that isn't our app
+                            for (packageName in browserPackages) {
+                                if (packageName != this@MainContainerActivity.packageName) {
+                                    try {
+                                        val explicitIntent =
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        explicitIntent.setPackage(packageName)
+                                        explicitIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        this@MainContainerActivity.startActivity(explicitIntent)
+                                        Log.d(
+                                            "MainContainer",
+                                            "Opened URL with explicit browser: $packageName"
+                                        )
+                                        return
+                                    } catch (e: Exception) {
+                                        Log.e(
+                                            "MainContainer",
+                                            "Failed to open with browser: $packageName",
+                                            e
+                                        )
+                                        // Try the next browser
+                                    }
+                                }
+                            }
+                        }
+
+                        // If we couldn't find a browser or all attempts failed, try one more time with Chrome
+                        Log.d(
+                            "MainContainer",
+                            "No other browsers found, trying Chrome specifically"
+                        )
+
+                        // Try Chrome again with a more direct approach
+                        try {
+                            val chromeIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            chromeIntent.setPackage("com.android.chrome")
+                            chromeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            this@MainContainerActivity.startActivity(chromeIntent)
+                            Log.d("MainContainer", "Opened URL with Chrome (direct attempt)")
+                            return
+                        } catch (e: Exception) {
+                            Log.e("MainContainer", "Failed direct Chrome attempt: ${e.message}")
+                        }
+
+                        // Try Chrome variants (some devices use different package names)
+                        val chromeVariants = arrayOf(
+                            "com.chrome.beta",
+                            "com.chrome.dev",
+                            "com.chrome.canary",
+                            "com.google.android.apps.chrome"
+                        )
+
+                        for (chromePackage in chromeVariants) {
+                            try {
+                                val variantIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                variantIntent.setPackage(chromePackage)
+                                variantIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                this@MainContainerActivity.startActivity(variantIntent)
+                                Log.d(
+                                    "MainContainer",
+                                    "Opened URL with Chrome variant: $chromePackage"
+                                )
+                                return
+                            } catch (e: Exception) {
+                                Log.e("MainContainer", "Failed Chrome variant: $chromePackage")
+                            }
+                        }
+
+                        // Create a chooser intent as fallback
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            val chooser = Intent.createChooser(intent, "Open with")
+                            this@MainContainerActivity.startActivity(chooser)
+                            Log.d("MainContainer", "Opened URL with chooser dialog")
+                        } catch (e: Exception) {
+                            Log.e("MainContainer", "Failed to open chooser: ${e.message}")
+
+                            // Absolute last resort: WebView
+                            try {
+                                val webViewIntent =
+                                    Intent(this@MainContainerActivity, WebViewActivity::class.java)
+                                webViewIntent.putExtra("url", url)
+                                webViewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                this@MainContainerActivity.startActivity(webViewIntent)
+                                Log.d("MainContainer", "Opened URL in WebViewActivity")
+                            } catch (e: Exception) {
+                                Log.e("MainContainer", "Failed to open WebViewActivity", e)
+                                Toast.makeText(
+                                    this@MainContainerActivity,
+                                    "Please install Chrome or another browser",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    } else {
+                        // We're not the default browser, so we can just use the normal approach
+                        Log.d(
+                            "MainContainer",
+                            "We are NOT the default browser, using standard method to open URL"
+                        )
+                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        this@MainContainerActivity.startActivity(browserIntent)
+                    }
+                }
+
+                /**
+                 * Get a list of installed browser packages
+                 */
+                private fun getBrowserPackages(): List<String> {
+                    val browsers = ArrayList<String>()
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://www.example.com"))
+                    val resolveInfoList =
+                        this@MainContainerActivity.packageManager.queryIntentActivities(intent, 0)
+
+                    // Use explicit iterator to avoid ambiguity
+                    val iterator = resolveInfoList.iterator()
+                    while (iterator.hasNext()) {
+                        val resolveInfo = iterator.next()
+                        val packageName = resolveInfo.activityInfo.packageName
+                        // Skip our own package
+                        if (packageName != this@MainContainerActivity.packageName) {
+                            browsers.add(packageName)
+                            Log.d("MainContainer", "Found browser: $packageName")
+                        }
+                    }
+
+                    return browsers
+                }
+
+                /**
+                 * Shows a warning dialog when a phishing URL is detected
+                 */
+                private fun showPhishingWarningDialog(url: String, confidence: Double) {
+                    val riskPercent = (confidence * 100).toInt().coerceIn(1, 100)
+
+                    AlertDialog.Builder(this@MainContainerActivity)
+                        .setTitle("⚠️ Phishing Detected!")
+                        .setMessage("This URL has been identified as a potential phishing attempt with $riskPercent% confidence.\n\nURL: $url\n\nDo you still want to open it?")
+                        .setPositiveButton("Open Anyway") { _, _ ->
+                            // Add URL to both caches to prevent rescanning
+                            UrlCacheDatabase.cacheUrl(this@MainContainerActivity, url)
+                            // Keep legacy support for backward compatibility
+                            PreferencesManager.addApprovedUrl(this@MainContainerActivity, url)
+
+                            // Open directly in Chrome
+                            // Open in Chrome with special flags to prevent loops
+                            openUrlInChrome(url)
+                            // Navigate to URL check page with the scanned URL
+                            loadFragment(UrlCheckFragment.newInstance(url, true))
+                            finish()
+                        }
+                        .setNegativeButton("Cancel") { _, _ ->
+                            // Navigate to URL check page with the scanned URL
+                            loadFragment(UrlCheckFragment.newInstance(url, true))
+                            finish()
+                        }
+                        .setNeutralButton("Report False Positive") { _, _ ->
+                            // TODO: Implement false positive reporting
+                            Toast.makeText(
+                                this@MainContainerActivity,
+                                "Thank you for reporting. This will help improve our detection.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            // Navigate to URL check page with the scanned URL
+                            loadFragment(UrlCheckFragment.newInstance(url, true))
+                            finish()
+                        }
+                        .setCancelable(false)
+                        .show()
+                }
+
+                /**
+                 * Opens a URL directly in Chrome or falls back to default browser
+                 * Makes sure to bypass our app to prevent loops
+                 */
+                private fun openUrlInChrome(url: String) {
+                    try {
+                        // Create intent for Chrome with explicit package
+                        val chromeIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        chromeIntent.setPackage("com.android.chrome")
+
+                        // Add flags to create a new task and exclude our app from the intent resolution
+                        chromeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        chromeIntent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+
+                        // Add NO_HISTORY flag to prevent the browser from keeping this in history
+                        // This helps prevent loops when the back button is pressed
+                        chromeIntent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+
+                        // Set component to explicitly target Chrome's main activity
+                        try {
+                            val componentName = ComponentName(
+                                "com.android.chrome",
+                                "com.google.android.apps.chrome.Main"
+                            )
+                            chromeIntent.component = componentName
+                        } catch (e: Exception) {
+                            Log.e("MainContainer", "Failed to set Chrome component: ${e.message}")
+                        }
+
+                        // Set selector to ensure it doesn't come back to our app
+                        val selectorIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        selectorIntent.setPackage("com.android.chrome")
+                        chromeIntent.selector = selectorIntent
+
+                        Log.d(
+                            "MainContainer",
+                            "Opening URL in Chrome with explicit targeting: $url"
+                        )
+                        this@MainContainerActivity.startActivity(chromeIntent)
+                    } catch (e: Exception) {
+                        // If Chrome isn't available, try the default browser but exclude our app
+                        Log.e("MainContainer", "Failed to open with Chrome: ${e.message}")
+                        openUrlInExternalBrowser(url)
+                    }
+                }
+
+                /**
+                 * Opens a URL in our internal WebView to avoid infinite loops
+                 */
+                private fun openInWebView(url: String) {
+                    try {
+                        val webViewIntent =
+                            Intent(this@MainContainerActivity, WebViewActivity::class.java)
+                        webViewIntent.putExtra("url", url)
+                        this@MainContainerActivity.startActivity(webViewIntent)
+                        Log.d("MainContainer", "Opened URL in WebView: $url")
+                    } catch (e: Exception) {
+                        Log.e("MainContainer", "Failed to open WebView: ${e.message}")
+                        Toast.makeText(
+                            this@MainContainerActivity,
+                            "Error opening URL: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+
+                /**
+                 * Opens a URL in the browser
+                 */
+                private fun openUrlInBrowser(url: String) {
+                    // Add the URL to a set of approved URLs in preferences
+                    // This will prevent re-scanning when the user has explicitly chosen to open it
+                    PreferencesManager.addApprovedUrl(this@MainContainerActivity, url)
+
+                    // Check if we're the default browser
+                    if (AppLinkHelper.isDefaultLinkHandler(this@MainContainerActivity)) {
+                        Log.d(
+                            "MainContainer",
+                            "We are the default browser, using alternative method to open URL"
+                        )
+                        // We're the default browser, so we need to use a different approach
+                        // to avoid an infinite loop
+
+                        val browserPackages = getBrowserPackages()
+                        if (browserPackages.isNotEmpty()) {
+                            // Use the first available browser that isn't our app
+                            for (packageName in browserPackages) {
+                                if (packageName != this@MainContainerActivity.packageName) {
+                                    try {
+                                        val explicitIntent =
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        explicitIntent.setPackage(packageName)
+                                        explicitIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        this@MainContainerActivity.startActivity(explicitIntent)
+                                        Log.d(
+                                            "MainContainer",
+                                            "Opened URL with explicit browser: $packageName"
+                                        )
+                                        return
+                                    } catch (e: Exception) {
+                                        Log.e(
+                                            "MainContainer",
+                                            "Failed to open with browser: $packageName",
+                                            e
+                                        )
+                                        // Try the next browser
+                                    }
+                                }
+                            }
+                        }
+
+                        // Try Chrome variants (some devices use different package names)
+                        val chromeVariants = arrayOf(
+                            "com.chrome.beta",
+                            "com.chrome.dev",
+                            "com.chrome.canary",
+                            "com.google.android.apps.chrome"
+                        )
+
+                        for (chromePackage in chromeVariants) {
+                            try {
+                                val variantIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                variantIntent.setPackage(chromePackage)
+                                variantIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                this@MainContainerActivity.startActivity(variantIntent)
+                                Log.d(
+                                    "MainContainer",
+                                    "Opened URL with Chrome variant: $chromePackage"
+                                )
+                                return
+                            } catch (e: Exception) {
+                                Log.e("MainContainer", "Failed Chrome variant: $chromePackage")
+                            }
+                        }
+
+                        // If we couldn't find any browsers, try a chooser
+                        try {
+                            val chooserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            val chooser = Intent.createChooser(chooserIntent, "Open with")
+                            this@MainContainerActivity.startActivity(chooser)
+                            Log.d("MainContainer", "Opened URL with chooser")
+                            return
+                        } catch (e: Exception) {
+                            Log.e("MainContainer", "Failed to open chooser", e)
+                        }
+
+                        // Absolute last resort: WebView
+                        try {
+                            val webViewIntent =
+                                Intent(this@MainContainerActivity, WebViewActivity::class.java)
+                            webViewIntent.putExtra("url", url)
+                            webViewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            this@MainContainerActivity.startActivity(webViewIntent)
+                            Log.d("MainContainer", "Opened URL in WebViewActivity")
+                        } catch (e: Exception) {
+                            Log.e("MainContainer", "Failed to open WebViewActivity", e)
+                            Toast.makeText(
+                                this@MainContainerActivity,
+                                "Please install Chrome or another browser",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else {
+                        // We're not the default browser, so we can just use the normal approach
+                        Log.d(
+                            "MainContainer",
+                            "We are NOT the default browser, using standard method to open URL"
+                        )
+                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        this@MainContainerActivity.startActivity(browserIntent)
+                    }
+                }
+
+                /**
+                 * Get a list of installed browser packages
+                 */
+                private fun getBrowserPackages(): List<String> {
+                    val browsers = ArrayList<String>()
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("http://www.example.com"))
+                    val resolveInfoList =
+                        this@MainContainerActivity.packageManager.queryIntentActivities(intent, 0)
+
+                    for (resolveInfo in resolveInfoList) {
+                        val packageName = resolveInfo.activityInfo.packageName
+                        // Skip our own package
+                        if (packageName != this@MainContainerActivity.packageName) {
+                            browsers.add(packageName)
+                            Log.d("MainContainer", "Found browser: $packageName")
+                        }
+                    }
+
+                    return browsers
+                }
+
+                /**
+                 * Handle internal navigation intents
+                 */
+                private fun handleNavigationIntent(intent: Intent) {
+                    // Get the fragment to navigate to from the intent
+                    val fragmentToLoad = intent.getStringExtra("fragment")
+
+                    // Get URL parameters if they exist
+                    val url = intent.getStringExtra("url")
+                    val fromNotification = intent.getBooleanExtra("fromNotification", false)
+
+                    // Navigate to the specified fragment if provided
+                    when (fragmentToLoad) {
+                        "dashboard" -> {
+                            bottomNavigationView.selectedItemId = R.id.navigation_dashboard
+                        }
+
+                        "url_check" -> {
+                            // If we have URL parameters, load the UrlCheckFragment with those parameters
+                            if (url != null) {
+                                loadFragment(UrlCheckFragment.newInstance(url, fromNotification))
+                            } else {
+                                bottomNavigationView.selectedItemId = R.id.navigation_url_check
+                            }
+                        }
+
+                        "settings" -> {
+                            bottomNavigationView.selectedItemId = R.id.navigation_settings
+                        }
+                    }
+                }
+
+                override fun onNewIntent(intent: Intent) {
+                    super.onNewIntent(intent)
+                    // Handle the new intent
+                    handleIntent(intent)
+                }
+
+                /**
+                 * Check if the app is set as the default link handler and prompt if not
+                 */
+                private fun checkDefaultLinkHandlerStatus() {
+                    // Only show the prompt once per session
+                    if (!AppLinkHelper.isDefaultLinkHandler(this@MainContainerActivity)) {
+                        // Check if we've already shown this prompt recently
+                        val lastPromptTime =
+                            PreferencesManager.getLastDefaultHandlerPromptTime(this@MainContainerActivity)
+                        val currentTime = System.currentTimeMillis()
+
+                        // Only show prompt if we haven't shown it in the last 24 hours
+                        if (currentTime - lastPromptTime > 24 * 60 * 60 * 1000) {
+                            // For Android 10+ (API 29+), use the system dialog to request browser role
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                // Show a dialog explaining why we need browser role before showing system dialog
+                                AlertDialog.Builder(this@MainContainerActivity)
+                                    .setTitle("Set as Default Browser")
+                                    .setMessage("For Layer 2 protection to work properly when clicking links in any app, please set this app as your default browser when prompted.")
+                                    .setPositiveButton("Continue") { _, _ ->
+                                        // Request browser role using the system dialog
+                                        AppLinkHelper.requestBrowserRoleWithLauncher(
+                                            this@MainContainerActivity,
+                                            browserRoleLauncher
+                                        )
+                                    }
+                                    .setNegativeButton("Later", null)
+                                    .show()
+                            } else {
+                                // For older Android versions, show the custom instructions dialog
+                                AppLinkHelper.promptForDefaultLinkHandler(this@MainContainerActivity)
+                            }
+
+                            // Update the last prompt time regardless of Android version
+                            PreferencesManager.setLastDefaultHandlerPromptTime(
+                                this@MainContainerActivity,
+                                currentTime
+                            )
+                        }
+                    }
+                }
+
+                /**
+                 * Add a menu option to request browser role directly
+                 */
+                fun requestDefaultBrowser() {
+                    AppLinkHelper.requestBrowserRoleWithLauncher(
+                        this@MainContainerActivity,
+                        browserRoleLauncher
+                    )
+                }
+            }
+        }
+    }
+}

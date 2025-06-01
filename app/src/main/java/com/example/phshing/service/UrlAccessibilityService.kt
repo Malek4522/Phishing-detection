@@ -2,15 +2,21 @@ package com.example.phshing.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.example.phshing.api.PhishingApiClient
+import com.example.phshing.api.PhishingResult
+import com.example.phshing.cache.UrlCacheDatabase
+import com.example.phshing.database.ScanDataManager
 import com.example.phshing.utils.NotificationHelper
 import com.example.phshing.utils.PreferencesManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.regex.Pattern
 
 /**
@@ -19,6 +25,9 @@ import java.util.regex.Pattern
 class UrlAccessibilityService : AccessibilityService() {
 
     companion object {
+        // Logging tag
+        private const val TAG = "UrlAccessibilityService"
+        
         // Action for broadcasting scan results
         const val ACTION_URL_SCANNED = "com.example.phshing.URL_SCANNED"
         const val EXTRA_URL = "url"
@@ -292,20 +301,23 @@ class UrlAccessibilityService : AccessibilityService() {
         
         // Process each unique URL found in this text
         for (url in detectedUrls) {
-            // Skip if this URL was recently checked
+            // Skip if this URL was recently checked (check local cache first for speed)
             if (url == lastDetectedUrl || recentlyCheckedUrls.contains(url)) {
                 continue
             }
             
-            // Update last detected URL and add to recently checked
+            // Then check shared cache (SQLite + shared memory cache)
+            if (UrlCacheDatabase.isUrlCached(this, url)) {
+                Log.d(TAG, "URL found in shared cache, skipping: $url")
+                continue
+            }
+            
+            // Update last detected URL and add to both local and shared caches
             lastDetectedUrl = url
             addToRecentlyChecked(url)
             
-            // For testing: directly show notification without API call
-            showTestNotification(url)
-            
-            // Broadcast the detection (for testing)
-            broadcastTestResult(url)
+            // Perform actual URL scanning
+            scanUrlForPhishing(url)
         }
     }
     
@@ -325,31 +337,88 @@ class UrlAccessibilityService : AccessibilityService() {
     }
     
     /**
-     * Shows a test notification for a detected URL (without API call)
+     * Scans a URL for phishing using the API and shows notification with results
      */
-    private fun showTestNotification(url: String) {
-        // Create and show a notification
-        val notification = NotificationHelper.createPhishingAlertNotification(
-            this,
-            url,
-            "URL detected for testing purposes"
-        ).build()
+    private fun scanUrlForPhishing(url: String) {
+        // Increment total scanned links counter
+        PreferencesManager.incrementTotalScannedLinks(this)
         
-        NotificationHelper.showNotification(
-            this,
-            NotificationHelper.NOTIFICATION_ID_PHISHING_ALERT,
-            notification
-        )
+        serviceScope.launch {
+            try {
+                // Call the phishing detection API
+                val result = PhishingApiClient.checkUrl(url)
+                
+                when (result) {
+                    is PhishingResult.Success -> {
+                        // Cache the URL to avoid repeated checks
+                        UrlCacheDatabase.cacheUrl(this@UrlAccessibilityService, url)
+                        
+                        // Only show notification if it's a phishing URL
+                        if (result.isPhishing) {
+                            // Show phishing alert notification with confidence percentage
+                            val confidencePercent = (result.confidence * 100).toInt()
+                            val message = "Warning: This URL may be a phishing attempt ($confidencePercent% confidence)"
+                            showPhishingNotification(url, message)
+                            
+                            // Save the phishing URL to the database for history
+                            try {
+                                val scanDataManager = ScanDataManager(this@UrlAccessibilityService)
+                                scanDataManager.addScan(
+                                    url = url,
+                                    isPhishing = true,
+                                    severityScore = result.confidence.toFloat()
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error saving scan record: ${e.message}")
+                            }
+                        } else {
+                            // For safe URLs, just log and don't show notification
+                            Log.d(TAG, "URL scanned and found safe: $url (${(result.confidence * 100).toInt()}% confidence)")
+                        }
+                        
+                        // Broadcast the result to the app
+                        broadcastScanResult(url, result.isPhishing, result.confidence)
+                    }
+                    is PhishingResult.Error -> {
+                        Log.e(TAG, "Error scanning URL: ${result.message}")
+                        // Don't show notification for errors, but broadcast the result
+                        broadcastScanResult(url, false, 0.0)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception scanning URL: ${e.message}")
+            }
+        }
     }
     
     /**
-     * Broadcasts the test result to the app (without API call)
+     * Shows a notification for a detected phishing URL
      */
-    private fun broadcastTestResult(url: String) {
+    private fun showPhishingNotification(url: String, message: String) {
+        // Create and show a notification on the main thread
+        serviceScope.launch(Dispatchers.Main) {
+            val notification = NotificationHelper.createPhishingAlertNotification(
+                this@UrlAccessibilityService,
+                url,
+                message
+            ).build()
+            
+            NotificationHelper.showNotification(
+                this@UrlAccessibilityService,
+                NotificationHelper.NOTIFICATION_ID_PHISHING_ALERT,
+                notification
+            )
+        }
+    }
+    
+    /**
+     * Broadcasts the scan result to the app
+     */
+    private fun broadcastScanResult(url: String, isPhishing: Boolean, confidence: Double) {
         val intent = Intent(ACTION_URL_SCANNED).apply {
             putExtra(EXTRA_URL, url)
-            putExtra(EXTRA_IS_PHISHING, true) // Always true for testing
-            putExtra(EXTRA_CONFIDENCE, 0.95) // High confidence for testing
+            putExtra(EXTRA_IS_PHISHING, isPhishing)
+            putExtra(EXTRA_CONFIDENCE, confidence)
         }
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }

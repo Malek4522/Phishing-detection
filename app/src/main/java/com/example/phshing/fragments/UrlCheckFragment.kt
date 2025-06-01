@@ -53,17 +53,25 @@ class UrlCheckFragment : Fragment() {
     private lateinit var scanDataManager: ScanDataManager
     
     companion object {
+        private const val ARG_URL = "url"
+        private const val ARG_AUTO_SCAN = "auto_scan"
         private const val PERMISSION_REQUEST_CODE = 100
         
+        /**
+         * Creates a new instance of UrlCheckFragment with optional URL to scan
+         * @param url The URL to scan (optional)
+         * @param autoScan Whether to automatically scan the URL when fragment is created
+         * @return A new instance of UrlCheckFragment
+         */
         fun newInstance(): UrlCheckFragment {
             return UrlCheckFragment()
         }
         
-        fun newInstance(url: String, fromNotification: Boolean = false): UrlCheckFragment {
+        fun newInstance(url: String, autoScan: Boolean = false): UrlCheckFragment {
             val fragment = UrlCheckFragment()
             val args = Bundle()
-            args.putString("url", url)
-            args.putBoolean("fromNotification", fromNotification)
+            args.putString(ARG_URL, url)
+            args.putBoolean(ARG_AUTO_SCAN, autoScan)
             fragment.arguments = args
             return fragment
         }
@@ -90,7 +98,7 @@ class UrlCheckFragment : Fragment() {
     
     // Variables to handle URL from notifications or other sources
     private var urlFromArgs: String? = null
-    private var fromNotification: Boolean = false
+    private var autoScan: Boolean = false
     
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -108,15 +116,15 @@ class UrlCheckFragment : Fragment() {
         
         // Get URL from arguments if available
         arguments?.let { args ->
-            urlFromArgs = args.getString("url")
-            fromNotification = args.getBoolean("fromNotification", false)
+            urlFromArgs = args.getString(ARG_URL)
+            autoScan = args.getBoolean(ARG_AUTO_SCAN, false)
         }
         
         // Also check activity's intent for URL (for backward compatibility)
         activity?.intent?.let { intent ->
             if (urlFromArgs == null) {
                 urlFromArgs = intent.getStringExtra("url")
-                fromNotification = intent.getBooleanExtra("fromNotification", false)
+                autoScan = intent.getBooleanExtra("autoScan", false)
             }
         }
 
@@ -168,8 +176,8 @@ class UrlCheckFragment : Fragment() {
         // If we have a URL from arguments or intent, set it in the input field and check it
         urlFromArgs?.let { url ->
             urlInput.setText(url)
-            // If from notification, automatically check the URL
-            if (fromNotification) {
+            // If autoScan is true (from Layer 1 detection or notification), automatically check the URL
+            if (autoScan) {
                 // Use a short delay to ensure the UI is fully loaded
                 Handler(Looper.getMainLooper()).postDelayed({
                     performUrlScan(url)

@@ -49,6 +49,9 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.okhttp.logging)
     
+    // WorkManager for background tasks
+    implementation(libs.androidx.work.runtime.ktx)
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
