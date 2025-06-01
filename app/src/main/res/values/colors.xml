@@ -22,6 +22,10 @@
     <color name="gauge_orange">#FF9800</color>
     <color name="gauge_red">#F44336</color>
     
+    <!-- Status colors -->
+    <color name="status_yellow">#FFC107</color>
+    <color name="status_red">#F44336</color>
+    
     <!-- Risk level colors updated -->
     <color name="critical_red">#F44336</color>
     <color name="high_orange">#FF9800</color>
@@ -30,4 +34,17 @@
     
     <color name="dark_surface">#1E1E1E</color>
     <color name="tab_unselected">#757575</color>
+    
+    <!-- Additional colors for UI elements -->
+    <color name="orange_accent">#FF5722</color>
+    <color name="red_accent">#F44336</color>
+    <color name="green_accent">#4CAF50</color>
+    <color name="divider_color">#424242</color>
+    
+    <!-- Protection status colors -->
+    <color name="protection_inactive">#F44336</color>
+    
+    <!-- URL check result colors -->
+    <color name="negative_red">#F44336</color>
+    <color name="warning_yellow">#FFC107</color>
 </resources>

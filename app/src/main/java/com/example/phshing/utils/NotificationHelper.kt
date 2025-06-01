@@ -13,7 +13,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.example.phshing.UrlCheckActivity
+import com.example.phshing.MainContainerActivity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -122,8 +122,10 @@ object NotificationHelper {
      * @param forForeground Whether this notification is for a foreground service
      */
     fun createProtectionNotification(context: Context, forForeground: Boolean): NotificationCompat.Builder {
-        // Create an intent to open the app when notification is tapped
-        val contentIntent = Intent(context, UrlCheckActivity::class.java)
+        // Create an intent to open the app with the URL check fragment when notification is tapped
+        val contentIntent = Intent(context, MainContainerActivity::class.java).apply {
+            putExtra("fragment", "url_check")
+        }
         val contentPendingIntent = PendingIntent.getActivity(
             context,
             0,
@@ -214,8 +216,9 @@ object NotificationHelper {
      * @param message Additional details about the phishing detection
      */
     fun createPhishingAlertNotification(context: Context, url: String, message: String): NotificationCompat.Builder {
-        // Create an intent to open the URL check activity when notification is tapped
-        val contentIntent = Intent(context, UrlCheckActivity::class.java).apply {
+        // Create an intent to open the URL check fragment when notification is tapped
+        val contentIntent = Intent(context, MainContainerActivity::class.java).apply {
+            putExtra("fragment", "url_check")
             putExtra("url", url)
             putExtra("fromNotification", true)
         }

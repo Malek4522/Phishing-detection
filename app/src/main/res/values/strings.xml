@@ -20,7 +20,9 @@
     
     <!-- Dashboard Strings -->
     <string name="welcome_back">Welcome Back</string>
+    <string name="protection_status">Protection Status</string>
     <string name="protection_active">Protection GuardianAI is Active</string>
+    <string name="protection_inactive">Protection GuardianAI is Inactive</string>
     <string name="statistical_results">Statistical Results</string>
     <string name="total_links_scanned">Total Link Scanned</string>
     <string name="links_per_day">%d/day</string>
@@ -49,6 +51,12 @@
     <string name="home">Home</string>
     <string name="scan">Scan</string>
     <string name="history">History</string>
+    
+    <!-- Dashboard Statistics -->
+    <string name="phishing_links">Phishing Links</string>
+    <string name="safe_links">Safe Links</string>
+    <string name="phishing_rate">Phishing Rate</string>
+    <string name="avg_detection_time">Avg. Detection Time</string>
     
     <!-- Accessibility Service -->
     <string name="accessibility_service_description">Monitors screen content for phishing URLs to protect you from malicious websites.</string>

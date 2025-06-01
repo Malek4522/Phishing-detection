@@ -1,32 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- This is a compatibility layout file for the activity-based architecture -->
-<!-- It's recommended to use fragment_dashboard.xml for the new fragment-based architecture -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/dashboard_background"
-    tools:context=".DashboardActivity">
+    android:background="@android:color/black">
 
-    <!-- This layout includes the same content as fragment_dashboard.xml -->
-    <include
-        android:id="@+id/dashboard_content"
-        layout="@layout/fragment_dashboard"
-        android:layout_width="match_parent"
+    <FrameLayout
+        android:id="@+id/fragment_container"
+        android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toTopOf="@+id/bottom_navigation"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Bottom Navigation -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:background="@drawable/bottom_nav_background"
-        app:itemIconTint="@color/white"
-        app:itemTextColor="@color/white"
+        android:background="#0D1117"
+        android:elevation="8dp"
+        app:itemIconTint="@color/nav_item_color_selector"
+        app:itemTextColor="@color/nav_item_color_selector"
+        app:itemRippleColor="@color/purple_primary"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:menu="@menu/bottom_navigation_menu" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

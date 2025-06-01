@@ -14,7 +14,17 @@ class DashboardActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_dashboard)
+        
+        // Redirect to MainContainerActivity with the dashboard fragment parameter
+        val intent = Intent(this, MainContainerActivity::class.java).apply {
+            putExtra("fragment", "dashboard")
+            // Transfer any extras from the original intent
+            intent?.extras?.let { extras ->
+                putExtras(extras)
+            }
+        }
+        startActivity(intent)
+        finish() // Close this activity
         
         // Check if accessibility service is enabled and prompt user if needed
         checkAccessibilityService()

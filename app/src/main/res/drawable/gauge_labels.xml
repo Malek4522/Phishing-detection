@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Semi-transparent arc for the labels background -->
+    <item>
+        <rotate
+            android:fromDegrees="135"
+            android:toDegrees="405"
+            android:pivotX="50%"
+            android:pivotY="50%">
+            <shape
+                android:shape="ring"
+                android:useLevel="false"
+                android:thicknessRatio="25"
+                android:innerRadiusRatio="1.8">
+                <solid android:color="#10FFFFFF" />
+            </shape>
+        </rotate>
+    </item>
+</layer-list>

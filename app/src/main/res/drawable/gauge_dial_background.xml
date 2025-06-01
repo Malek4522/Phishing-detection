@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer circle for the gauge -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#1A1A1A" />
+            <size android:width="200dp" android:height="200dp" />
+        </shape>
+    </item>
+    
+    <!-- Inner circle with gradient -->
+    <item android:left="10dp" android:top="10dp" android:right="10dp" android:bottom="10dp">
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="100dp"
+                android:startColor="#2A2A2A"
+                android:endColor="#151515" />
+        </shape>
+    </item>
+</layer-list>

@@ -6,6 +6,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.phshing.utils.NotificationHelper
+import com.example.phshing.utils.PreferencesManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -86,6 +87,12 @@ class UrlAccessibilityService : AccessibilityService() {
     }
     
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        // First check if Layer 1 is enabled in settings
+        if (!PreferencesManager.isLayer1Active(this)) {
+            // Layer 1 is disabled in settings, don't process events
+            return
+        }
+        
         val packageName = event.packageName?.toString() ?: return
         
         // Skip events from our own package

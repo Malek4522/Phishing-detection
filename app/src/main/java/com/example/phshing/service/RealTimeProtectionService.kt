@@ -1,13 +1,22 @@
 package com.example.phshing.service
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
+import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import com.example.phshing.R
+import com.example.phshing.utils.AccessibilityUtil
 import com.example.phshing.utils.NotificationHelper
 import com.example.phshing.utils.PreferencesManager
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +68,11 @@ class RealTimeProtectionService : Service() {
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // IMPORTANT: When started with startForegroundService(), we MUST call startForeground() immediately
+        // to avoid ANR crashes. So we start in foreground mode right away with a notification.
+        val notification = NotificationHelper.createProtectionNotification(this, true).build()
+        startForeground(NotificationHelper.NOTIFICATION_ID_PROTECTION_ACTIVE, notification)
+        
         if (intent?.action == ACTION_STOP) {
             // Save the protection status as inactive
             PreferencesManager.setProtectionActive(this, false)
@@ -76,19 +90,88 @@ class RealTimeProtectionService : Service() {
             return START_NOT_STICKY
         }
         
+        // Check if any protection layers are enabled in preferences
+        val layer1Active = PreferencesManager.isLayer1Active(this)
+        val layer2Active = PreferencesManager.isLayer2Active(this)
+        
+        // If no protection layers are active, stop the service
+        if (!layer1Active && !layer2Active) {
+            Log.d(TAG, "No protection layers are active in preferences, stopping service")
+            PreferencesManager.setProtectionActive(this, false)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        
+        // If Layer 1 is active in preferences, check if accessibility service is enabled
+        if (layer1Active && !AccessibilityUtil.isAccessibilityServiceEnabled(this)) {
+            Log.d(TAG, "Layer 1 is active but missing accessibility permission")
+            
+            // Instead of showing a dialog (which causes crashes), create a notification
+            // that will take the user to accessibility settings when tapped
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            // Create an intent to open accessibility settings
+            val settingsIntent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            val pendingIntent = PendingIntent.getActivity(
+                this, 
+                0, 
+                settingsIntent, 
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            
+            // Create notification channel for Android O and above
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    "accessibility_channel",
+                    "Accessibility Permissions",
+                    NotificationManager.IMPORTANCE_HIGH
+                )
+                channel.description = "Notifications for required permissions"
+                notificationManager.createNotificationChannel(channel)
+            }
+            
+            // Build the notification
+            val notification = NotificationCompat.Builder(this, "accessibility_channel")
+                .setContentTitle("Accessibility Permission Required")
+                .setContentText("Layer 1 protection requires accessibility permission")
+                .setSmallIcon(R.drawable.ic_shield)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .build()
+            
+            // Show the notification
+            notificationManager.notify(PERMISSION_NOTIFICATION_ID, notification)
+        }
+        
         // Save the protection status as active
         PreferencesManager.setProtectionActive(this, true)
-        
-        // Get the notification from NotificationHelper
-        val notification = NotificationHelper.createProtectionNotification(this, true).build()
-        
-        // Start as a foreground service with persistent notification
-        startForeground(NotificationHelper.NOTIFICATION_ID_PROTECTION_ACTIVE, notification)
         
         // Start the service heartbeat
         startHeartbeat()
         
+        // Log which protection layers are active
+        logActiveProtectionLayers(layer1Active, layer2Active)
+        
         return START_STICKY
+    }
+    
+    /**
+     * Logs which protection layers are currently active
+     */
+    private fun logActiveProtectionLayers(layer1Active: Boolean, layer2Active: Boolean) {
+        val layer1Status = if (layer1Active && AccessibilityUtil.isAccessibilityServiceEnabled(this)) {
+            "ACTIVE"
+        } else if (layer1Active) {
+            "INACTIVE (missing accessibility permission)"
+        } else {
+            "DISABLED"
+        }
+        
+        val layer2Status = if (layer2Active) "ACTIVE" else "DISABLED"
+        
+        Log.d(TAG, "Protection Layer 1 (Accessibility): $layer1Status")
+        Log.d(TAG, "Protection Layer 2 (Link Hook): $layer2Status")
     }
     
     /**
@@ -100,7 +183,20 @@ class RealTimeProtectionService : Service() {
         serviceScope.launch {
             while (isRunning) {
                 try {
-                    Log.d(TAG, "Protection service is active")
+                    // Check current protection settings
+                    val layer1Active = PreferencesManager.isLayer1Active(this@RealTimeProtectionService)
+                    val layer2Active = PreferencesManager.isLayer2Active(this@RealTimeProtectionService)
+                    
+                    // Log active protection layers
+                    logActiveProtectionLayers(layer1Active, layer2Active)
+                    
+                    // If no protection layers are active, stop the service
+                    if (!layer1Active && !layer2Active) {
+                        Log.d(TAG, "No protection layers are active, stopping service")
+                        PreferencesManager.setProtectionActive(this@RealTimeProtectionService, false)
+                        stopSelf()
+                        break
+                    }
                     delay(HEARTBEAT_INTERVAL)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in protection service: ${e.message}")
@@ -109,6 +205,8 @@ class RealTimeProtectionService : Service() {
             }
         }
     }
+    
+
     
     override fun onDestroy() {
         super.onDestroy()
@@ -128,7 +226,9 @@ class RealTimeProtectionService : Service() {
     }
     
     companion object {
-        const val ACTION_STOP = "com.example.phshing.STOP_PROTECTION"
+        const val ACTION_STOP = "com.example.phshing.service.STOP"
+        const val NOTIFICATION_ID = 1001
+        const val PERMISSION_NOTIFICATION_ID = 1002
         private const val TAG = "RealTimeProtection"
     }
 }

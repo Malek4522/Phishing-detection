@@ -11,8 +11,11 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.viewpager2.widget.ViewPager2
+import com.example.phshing.utils.PreferencesManager
+import com.google.android.material.tabs.TabLayout
+import com.google.android.material.tabs.TabLayoutMediator
 
-class MainActivity : AppCompatActivity() {
+class OnboardingActivity : AppCompatActivity() {
 
     private lateinit var viewPager: ViewPager2
     private lateinit var skipButton: TextView
@@ -29,7 +32,10 @@ class MainActivity : AppCompatActivity() {
         // Make system bars transparent and handle insets properly
         WindowCompat.setDecorFitsSystemWindows(window, false)
         
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.activity_onboarding)
+        
+        // Removed the check for onboarding completion so it shows every time
+        // The onboarding will now appear every time the app is launched
         
         // Set up the system bars insets
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -79,12 +85,9 @@ class MainActivity : AppCompatActivity() {
         }
         
         getStartedButton.setOnClickListener {
-            // Navigate to the MainContainerActivity with dashboard fragment
-            val intent = Intent(this, MainContainerActivity::class.java).apply {
-                putExtra("fragment", "dashboard")
-            }
-            startActivity(intent)
-            finish() // Close the onboarding activity
+            // No need to mark onboarding as completed since we want to show it every time
+            // Just navigate to the Main Container
+            startMainActivity()
         }
     }
     
@@ -116,5 +119,11 @@ class MainActivity : AppCompatActivity() {
                 skipButton.visibility = View.VISIBLE
             }
         }
+    }
+    
+    private fun startMainActivity() {
+        val intent = Intent(this, MainContainerActivity::class.java)
+        startActivity(intent)
+        finish()
     }
 }

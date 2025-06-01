@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Gauge ticks - semi-circle arc with ticks -->
+    <item>
+        <rotate
+            android:fromDegrees="135"
+            android:toDegrees="405"
+            android:pivotX="50%"
+            android:pivotY="50%">
+            <shape
+                android:shape="ring"
+                android:useLevel="false"
+                android:thicknessRatio="40"
+                android:innerRadiusRatio="2.3">
+                <gradient
+                    android:type="sweep"
+                    android:useLevel="false"
+                    android:startColor="@color/gauge_red"
+                    android:centerColor="@color/gauge_yellow"
+                    android:endColor="@color/gauge_green"
+                    android:angle="0" />
+            </shape>
+        </rotate>
+    </item>
+</layer-list>

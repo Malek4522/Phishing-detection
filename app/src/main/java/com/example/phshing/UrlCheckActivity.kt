@@ -67,7 +67,17 @@ class UrlCheckActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_url_check)
+        
+        // Redirect to MainContainerActivity with the url_check fragment parameter
+        val intent = Intent(this, MainContainerActivity::class.java).apply {
+            putExtra("fragment", "url_check")
+            // Transfer any extras from the original intent
+            intent?.extras?.let { extras ->
+                putExtras(extras)
+            }
+        }
+        startActivity(intent)
+        finish() // Close this activity
 
         // Initialize views
         urlInput = findViewById(R.id.url_input)
@@ -126,7 +136,9 @@ class UrlCheckActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.navigation_home -> {
                     // Navigate to Dashboard Activity
-                    val intent = Intent(this, DashboardActivity::class.java)
+                    val intent = Intent(this, MainContainerActivity::class.java).apply {
+                        putExtra("fragment", "dashboard")
+                    }
                     intent.flags = Intent.FLAG_ACTIVITY_NO_ANIMATION
                     startActivity(intent)
                     false // Don't select this item as we're leaving this activity
@@ -313,11 +325,6 @@ class UrlCheckActivity : AppCompatActivity() {
                 startService(serviceIntent)
             } else {
                 // Permission denied, show a message and reset the toggle
-                Toast.makeText(
-                    this,
-                    "Permissions are required for real-time protection",
-                    Toast.LENGTH_LONG
-                ).show()
                 
                 // Reset the protection state
                 isProtectionActive = false
@@ -335,8 +342,7 @@ class UrlCheckActivity : AppCompatActivity() {
         intent.action = RealTimeProtectionService.ACTION_STOP
         startService(intent)
         
-        // Show a toast message for demo purposes
-        Toast.makeText(this, "Real-time protection deactivated", Toast.LENGTH_SHORT).show()
+        // Toast removed as requested
     }
 
     private fun simulateScan(url: String) {

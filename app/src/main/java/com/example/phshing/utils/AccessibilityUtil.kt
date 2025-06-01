@@ -59,11 +59,7 @@ object AccessibilityUtil {
             }
             .setNegativeButton("Later") { dialog, _ ->
                 dialog.dismiss()
-                Toast.makeText(
-                    context,
-                    "Real-time protection is disabled. Enable it later in Settings.",
-                    Toast.LENGTH_LONG
-                ).show()
+                // Toast removed as requested
             }
             .setCancelable(false)
             .show()
@@ -73,13 +69,9 @@ object AccessibilityUtil {
      * Opens the accessibility settings screen
      * @param context Application context
      */
-    private fun openAccessibilitySettings(context: Context) {
+    fun openAccessibilitySettings(context: Context) {
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         context.startActivity(intent)
-        Toast.makeText(
-            context,
-            "Please enable 'GuardianAI' in the Accessibility Services",
-            Toast.LENGTH_LONG
-        ).show()
+        // Toast removed as requested
     }
 }
