@@ -5,10 +5,10 @@
 </div>
 
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-  <img src="pic1.jpg" width="250">
-  <img src="pic2.jpg" width="250">
-  <img src="pic3.jpg" width="250">
-  <img src="pic4.jpg" width="250">
+  <img src="pic1.jpg" width="200">
+  <img src="pic2.jpg" width="200">
+  <img src="pic3.jpg" width="200">
+  <img src="pic4.jpg" width="200">
 </div>
  
 
