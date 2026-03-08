@@ -14,4 +14,4 @@
 
 ## Contact
 
-For any inquiries or support, please contact us at abdmalek.2004@goutlook.com.
+For any inquiries or support, please contact us at abdmalek.2004@outlook.com.
